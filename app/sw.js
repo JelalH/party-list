@@ -1,5 +1,5 @@
 // Lets the app open without internet (the list itself is cached on the device).
-const CACHE = 'party-list-v2';
+const CACHE = 'party-list-v3';
 const SHELL = ['./', 'index.html', 'config.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png', 'privacy.html'];
 const LIB_HOSTS = ['cdnjs.cloudflare.com', 'cdn.jsdelivr.net', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 

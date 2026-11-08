@@ -138,6 +138,31 @@ dialog::backdrop{background:rgba(0,0,0,.4);backdrop-filter:blur(3px)}
 .stepper output{min-width:28px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
 .hint{font-size:12px;color:var(--muted);margin:0}
 
+/* events */
+.title-row{display:flex;align-items:center;gap:6px;min-width:0}
+.title-row #title{flex:1;min-width:0;width:auto}
+.ev-btn{flex:none;width:30px;height:30px;border-radius:9px;border:0;background:var(--chip);color:var(--text);display:grid;place-items:center;cursor:pointer}
+.ev-btn:hover{background:var(--border)}
+.ev-btn svg{width:16px;height:16px}
+#evList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto}
+.ev{position:relative;border-radius:14px;overflow:hidden;background:var(--danger)}
+.ev-del{position:absolute;inset:0 0 0 auto;width:88px;border:0;background:var(--danger);color:#fff;font-weight:600;cursor:pointer}
+.ev-card{position:relative;display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--bg);border:1px solid var(--border);border-radius:14px;cursor:pointer;touch-action:pan-y;user-select:none;transition:transform .2s}
+.ev-card.current{border-color:var(--text)}
+.ev-tag{font-size:12px;font-weight:600;color:var(--muted)}
+.chev{width:16px;height:16px;color:var(--muted);flex:none}
+
+/* premium */
+.pay{text-align:center;align-items:center}
+.pay-badge{width:52px;height:52px;border-radius:16px;background:var(--accent);color:var(--accent-text);display:grid;place-items:center;font-size:24px}
+.pay-lead{margin:0;color:var(--muted)}
+.pay-list{list-style:none;margin:4px 0;padding:0;display:flex;flex-direction:column;gap:8px;text-align:left;width:100%}
+.pay-list li{padding-left:26px;position:relative}
+.pay-list li::before{content:"✓";position:absolute;left:4px;font-weight:700}
+.pay-cta{width:100%;height:48px;justify-content:center;font-size:16px}
+.pay-later{text-align:center;color:var(--muted)}
+.prem-title{font-weight:600;font-size:14px}
+
 /* sign-in */
 #signin{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px 16px}
 .signin-box{width:min(360px,100%);display:flex;flex-direction:column;gap:10px;text-align:center}
@@ -183,7 +208,12 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 <div class="wrap">
   <header>
     <div class="hgroup">
-      <input id="title" aria-label="Party name" spellcheck="false">
+      <div class="title-row">
+        <input id="title" aria-label="Event name" spellcheck="false">
+        <button class="ev-btn" id="eventsBtn" aria-label="All events" title="All events">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+      </div>
       <button class="details-line" id="detailsLine"></button>
       <div class="stats" id="stats"></div>
     </div>
@@ -259,12 +289,44 @@ body{padding-bottom:env(safe-area-inset-bottom)}
   </form>
 </dialog>
 
+<!-- all events -->
+<dialog id="evDlg">
+  <div class="dlg">
+    <div class="set-row"><h2>Your events</h2><button class="btn sm primary" id="newEventBtn">+ New event</button></div>
+    <ul id="evList"></ul>
+    <p class="hint">Swipe an event left to delete it.</p>
+    <div class="dlg-actions"><div class="r"><button class="btn" id="evClose">Close</button></div></div>
+  </div>
+</dialog>
+
+<!-- premium -->
+<dialog id="payDlg">
+  <div class="dlg pay">
+    <div class="pay-badge">✦</div>
+    <h2>Party List Premium</h2>
+    <p class="pay-lead" id="payLead"></p>
+    <ul class="pay-list">
+      <li>Unlimited guests across every event</li>
+      <li>Unlimited events</li>
+      <li>One payment, no subscription</li>
+    </ul>
+    <button class="btn primary pay-cta" id="payBtn"></button>
+    <button class="link-btn pay-later" id="payClose">Not now</button>
+  </div>
+</dialog>
+
 <!-- settings -->
 <dialog id="setDlg">
   <div class="dlg">
     <h2>Settings</h2>
+    <div class="set-sec" id="premSec">
+      <div class="set-row">
+        <div><div class="prem-title" id="premTitle"></div><div class="hint" id="premSub"></div></div>
+        <button class="btn sm primary" id="premBtn"></button>
+      </div>
+    </div>
     <div class="set-sec">
-      <div class="lbl">Party details (shown on the shared list)</div>
+      <div class="lbl">Event details (shown on the shared list)</div>
       <div class="grid2">
         <div class="field"><label for="sDate">Date</label><input id="sDate" type="date"></div>
         <div class="field"><label for="sTime">Time</label><input id="sTime" type="time"></div>
@@ -313,10 +375,14 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 /* ---------- storage ---------- */
 const DEFAULTS = { title: 'My Party', sort: 'custom', nameSort: 'first', codeLen: 4, plusCap: 2, date: '', time: '', place: '', people: [] };
 function load(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
-function writeLocal(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
-function save(){ state.savedAt = Date.now(); writeLocal(); schedulePush(); }
+function writeLocal(){ try { localStorage.setItem(KEY, JSON.stringify(doc)); } catch {} }
+function save(){ doc.savedAt = Date.now(); writeLocal(); schedulePush(); }
+// one event (its own guests, details and preferences)
 function normalize(s){
   s = { ...DEFAULTS, ...(s || {}) };
+  s.id = s.id || uid();
+  s.createdAt = s.createdAt || Date.now();
+  delete s.savedAt; delete s.owner;
   // older version kept +1s inside each guest; turn them into people of their own
   if (Array.isArray(s.guests) && !(s.people && s.people.length)) {
     s.people = [];
@@ -329,7 +395,24 @@ function normalize(s){
   if (!Array.isArray(s.people)) s.people = [];
   return s;
 }
-let state = normalize(load());
+// everything one person has saved: all their events, and which one is open
+function normalizeDoc(d){
+  let out;
+  if (d && Array.isArray(d.events)) out = { ...d, events: d.events.map(normalize) };
+  else out = { events: [normalize(d)], savedAt: d?.savedAt || 0, owner: d?.owner };   // older single-list format
+  if (!out.events.length) out.events.push(normalize(null));
+  if (!out.events.some(e => e.id === out.currentId)) out.currentId = out.events[0].id;
+  out.v = 2;
+  return out;
+}
+let doc = normalizeDoc(load());
+let state = doc.events.find(e => e.id === doc.currentId);   // the open event
+function openEvent(id){
+  const ev = doc.events.find(e => e.id === id); if (!ev) return;
+  doc.currentId = id; state = ev; $('#q').value = ''; save(); render();
+}
+function useDoc(d){ doc = d; state = doc.events.find(e => e.id === doc.currentId); }
+const totalPeople = () => doc.events.reduce((n, e) => n + e.people.length, 0);
 
 /* ---------- account + online saving (Supabase) ---------- */
 const CFG = window.PARTY_CONFIG || {};
@@ -345,8 +428,11 @@ function schedulePush(){
 async function push(){
   if (!sb || !user || !dirty) return;
   dirty = false;
-  const { error } = await sb.from('party_lists').upsert({ user_id: user.id, data: state, updated_at: new Date().toISOString() });
-  if (error) { dirty = true; if (navigator.onLine) toast('Couldn’t save online, will try again'); }
+  const { error } = await sb.from('party_lists').upsert({ user_id: user.id, data: doc, updated_at: new Date().toISOString() });
+  if (error) {
+    if (/free_limit/.test(error.message)) { refreshPremium().then(() => { if (!premium) showPaywall(true); }); return; }
+    dirty = true; if (navigator.onLine) toast('Couldn’t save online, will try again');
+  }
 }
 // fetch the online copy; whichever copy was changed last wins
 async function pull(){
@@ -354,10 +440,13 @@ async function pull(){
   const { data, error } = await sb.from('party_lists').select('data').eq('user_id', user.id).maybeSingle();
   if (error) return;
   const remote = data?.data;
-  if (remote && (remote.savedAt || 0) > (state.savedAt || 0)) {
-    if ($('#dlg').open || $('#setDlg').open) return;   // don't swap the list mid-edit
-    state = normalize(remote); state.owner = user.id; writeLocal(); render();
-  } else if (state.savedAt && (!remote || state.savedAt > (remote.savedAt || 0))) {
+  if (remote && (remote.savedAt || 0) > (doc.savedAt || 0)) {
+    if (document.querySelector('dialog[open]')) return;   // don't swap the list mid-edit
+    const keep = doc.currentId;
+    useDoc(normalizeDoc(remote));
+    if (doc.events.some(e => e.id === keep)) useDoc({ ...doc, currentId: keep });
+    doc.owner = user.id; writeLocal(); render();
+  } else if (doc.savedAt && (!remote || doc.savedAt > (remote.savedAt || 0))) {
     dirty = true; push();
   }
 }
@@ -368,10 +457,10 @@ function setUser(u){
   $('#acctSec').hidden = !u;
   $('#acctEmail').textContent = u ? (u.email || 'Signed in') : '';
   if (u && changed) {
-    if (state.owner && state.owner !== u.id) state = normalize(null);   // someone else's list was cached here
-    state.owner = u.id; writeLocal(); render();
-    if (/[?&]code=/.test(location.search)) history.replaceState(null, '', location.pathname);
-    pull();
+    if (doc.owner && doc.owner !== u.id) useDoc(normalizeDoc(null));   // someone else's list was cached here
+    doc.owner = u.id; writeLocal(); render();
+    if (/[?&](code|session_id)=/.test(location.search)) history.replaceState(null, '', location.pathname);
+    pull(); refreshPremium();
   }
 }
 async function startAuth(){
@@ -382,8 +471,8 @@ async function startAuth(){
   $('#signOutBtn').onclick = async () => {
     await push();
     await sb.auth.signOut();
-    try { localStorage.removeItem(KEY); } catch {}
-    state = normalize(null); render(); $('#setDlg').close();
+    try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.premium'); } catch {}
+    premium = false; useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
   };
   const { data: { session } } = await sb.auth.getSession();
   setUser(session?.user || null);
@@ -515,12 +604,129 @@ document.querySelectorAll('#sortSeg button').forEach(b => b.onclick = () => { st
 $('#q').oninput = render;
 $('#title').oninput = e => { state.title = e.target.value; save(); };
 $('#title').onblur = e => { if (!e.target.value.trim()) { state.title = 'My Party'; save(); render(); } };
+$('#title').onkeydown = e => { if (e.key === 'Enter') e.target.blur(); };
+
+/* ---------- events ---------- */
+const evDlg = $('#evDlg');
+function eventMeta(e){
+  const n = e.people.length;
+  const when = e.date ? new Date(e.date + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+  return [when, `${n} ${n === 1 ? 'guest' : 'guests'}`].filter(Boolean).join(' · ');
+}
+function renderEvents(){
+  const list = [...doc.events].sort((a, b) => (b.id === doc.currentId) - (a.id === doc.currentId) || (b.createdAt || 0) - (a.createdAt || 0));
+  $('#evList').innerHTML = list.map(e => `
+    <li class="ev" data-id="${e.id}">
+      <button class="ev-del" data-del="${e.id}" tabindex="-1">Delete</button>
+      <div class="ev-card${e.id === doc.currentId ? ' current' : ''}">
+        <div class="main"><div class="name">${esc(e.title || 'Untitled event')}</div><div class="meta">${esc(eventMeta(e))}</div></div>
+        ${e.id === doc.currentId ? '<span class="ev-tag">Open</span>' : '<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>'}
+      </div>
+    </li>`).join('');
+}
+function openEvents(){ renderEvents(); evDlg.showModal(); }
+$('#eventsBtn').onclick = openEvents;
+$('#evClose').onclick = () => evDlg.close();
+$('#newEventBtn').onclick = () => {
+  const ev = normalize({ title: 'New event', codeLen: state.codeLen, plusCap: state.plusCap, nameSort: state.nameSort });
+  doc.events.push(ev); openEvent(ev.id); evDlg.close();
+  setTimeout(() => { const t = $('#title'); t.focus(); t.select(); }, 50);
+};
+function deleteEvent(id){
+  const ev = doc.events.find(e => e.id === id); if (!ev) return;
+  const n = ev.people.length;
+  if (!confirm(`Delete “${ev.title}”${n ? ` and its ${n} ${n === 1 ? 'guest' : 'guests'}` : ''}? This can’t be undone.`)) { renderEvents(); return; }
+  doc.events = doc.events.filter(e => e.id !== id);
+  if (!doc.events.length) doc.events.push(normalize(null));
+  if (doc.currentId === id) { doc.currentId = doc.events[0].id; state = doc.events[0]; }
+  save(); render(); renderEvents(); toast('Event deleted');
+}
+// swipe a row left to reveal Delete (works with touch and mouse)
+(() => {
+  const ul = $('#evList'); let drag = null;
+  const close = except => ul.querySelectorAll('.ev.open').forEach(li => { if (li !== except) { li.classList.remove('open'); li.querySelector('.ev-card').style.transform = ''; } });
+  ul.addEventListener('pointerdown', e => {
+    const card = e.target.closest('.ev-card'); if (!card) return;
+    const li = card.parentElement;
+    drag = { li, card, x0: e.clientX, y0: e.clientY, base: li.classList.contains('open') ? -88 : 0, dx: 0, moved: false };
+  });
+  ul.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (!drag.moved && Math.abs(dx) < 6) return;
+    if (!drag.moved && Math.abs(dy) > Math.abs(dx)) { drag = null; return; }   // vertical scroll
+    if (!drag.moved) { drag.moved = true; drag.card.setPointerCapture(e.pointerId); drag.card.style.transition = 'none'; close(drag.li); }
+    drag.dx = Math.max(-120, Math.min(0, drag.base + dx));
+    drag.card.style.transform = `translateX(${drag.dx}px)`;
+  });
+  const end = e => {
+    if (!drag) return;
+    // a very quick flick may arrive with no move events in between
+    if (!drag.moved && e && Math.abs(e.clientX - drag.x0) > 30 && Math.abs(e.clientX - drag.x0) > Math.abs(e.clientY - drag.y0)) {
+      drag.moved = true; drag.dx = Math.max(-120, Math.min(0, drag.base + e.clientX - drag.x0));
+    }
+    const { li, card, moved } = drag; card.style.transition = '';
+    if (moved) {
+      const open = drag.dx < -44;
+      li.classList.toggle('open', open); card.style.transform = open ? 'translateX(-88px)' : '';
+    } else if (li.classList.contains('open')) { li.classList.remove('open'); card.style.transform = ''; }
+    else { openEvent(li.dataset.id); evDlg.close(); }
+    drag = null;
+  };
+  ul.addEventListener('pointerup', end);
+  ul.addEventListener('pointercancel', () => { if (drag) { drag.card.style.transition = ''; drag.card.style.transform = ''; drag = null; } });
+  ul.addEventListener('click', e => { const id = e.target.dataset.del; if (id) deleteEvent(id); });
+})();
+
+/* ---------- premium ---------- */
+const FREE_LIMIT = 20, PRICE = '£2.99';
+let premium = (() => { try { return localStorage.getItem(KEY + '.premium') === '1'; } catch { return false; } })();
+async function refreshPremium(){
+  if (!sb || !user) return premium;
+  const { data } = await sb.from('entitlements').select('premium').eq('user_id', user.id).maybeSingle();
+  premium = !!data?.premium;
+  try { localStorage.setItem(KEY + '.premium', premium ? '1' : '0'); } catch {}
+  renderSettings();
+  return premium;
+}
+const payDlg = $('#payDlg');
+function showPaywall(hitLimit){
+  $('#payLead').textContent = hitLimit
+    ? `You’ve reached ${FREE_LIMIT} guests on the free plan. Unlock Premium to keep adding people.`
+    : 'One small payment, yours for life.';
+  $('#payBtn').textContent = `Unlock for ${PRICE}`;
+  $('#payBtn').disabled = false;
+  payDlg.showModal();
+}
+$('#payClose').onclick = () => payDlg.close();
+$('#payBtn').onclick = async () => {
+  if (!user) return toast('Sign in first');
+  $('#payBtn').disabled = true; $('#payBtn').textContent = 'Opening checkout…';
+  try {
+    const { data, error } = await sb.functions.invoke('create-checkout', { body: { returnUrl: location.origin + location.pathname } });
+    if (error || !data?.url) throw error || new Error('no url');
+    location.href = data.url;
+  } catch {
+    toast('Payments aren’t available yet, try again soon');
+    $('#payBtn').disabled = false; $('#payBtn').textContent = `Unlock for ${PRICE}`;
+  }
+};
+// back from Stripe checkout: wait for the purchase to land, then celebrate
+if (/[?&]paid=1/.test(location.search)) {
+  history.replaceState(null, '', location.pathname);
+  (async () => {
+    for (let i = 0; i < 10 && !premium; i++) { await new Promise(r => setTimeout(r, 1500)); if (user) await refreshPremium(); }
+    toast(premium ? 'Premium unlocked, thank you!' : 'Payment received, Premium will appear shortly');
+  })();
+}
 
 /* ---------- editor ---------- */
 const dlg = $('#dlg');
 let editId = null, editPlusOf = null;
+const atFreeLimit = () => !premium && totalPeople() >= FREE_LIMIT;
 function openEditor(id, plusOf = null){
   const p = id ? byId(id) : null;
+  if (!p && atFreeLimit()) { if (dlg.open) dlg.close(); showPaywall(true); return; }
   editId = p ? p.id : null;
   editPlusOf = p ? p.plusOf : plusOf;
   $('#dlgTitle').textContent = p ? p.name : (editPlusOf ? 'Add a +1' : 'Add guest');
@@ -566,6 +772,7 @@ function commit(){
   const name = $('#fName').value.trim();
   const code = $('#fCode').value.trim();
   if (!name) { $('#fName').focus(); toast('Add a name first'); return null; }
+  if (!editId && atFreeLimit()) { dlg.close(); showPaywall(true); return null; }
   const clash = state.people.find(p => p.code === code && p.id !== editId);
   if (code.length < 3 || clash) {
     $('#codeErr').textContent = clash ? `${clash.name} already has this code` : 'Codes need at least 3 digits';
@@ -627,8 +834,13 @@ function renderSettings(){
   document.querySelectorAll('#lenSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.len === state.codeLen));
   document.querySelectorAll('#nameSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.ns === state.nameSort));
   $('#capOut').value = state.plusCap;
+  $('#premTitle').textContent = premium ? 'Premium ✦' : 'Free plan';
+  $('#premSub').textContent = premium ? 'Unlimited guests, for life. Thank you!' : `${totalPeople()} of ${FREE_LIMIT} guests used across your events`;
+  $('#premBtn').hidden = premium;
+  $('#premBtn').textContent = `Go unlimited · ${PRICE}`;
 }
 function openSettings(){ renderSettings(); setDlg.showModal(); }
+$('#premBtn').onclick = () => { setDlg.close(); showPaywall(false); };
 $('#settingsBtn').onclick = openSettings;
 $('#detailsLine').onclick = openSettings;
 $('#setDone').onclick = () => setDlg.close();
@@ -723,9 +935,10 @@ $('#restoreFile').onchange = async e => {
   try {
     const data = JSON.parse(await f.text());
     if (!Array.isArray(data.people) && !Array.isArray(data.guests)) throw 0;
-    const next = normalize(data);
-    if (!confirm(`Replace the current list with “${next.title}” (${next.people.length} people)?`)) return;
-    state = next; state.owner = user?.id; save(); render(); renderSettings(); toast('Backup loaded');
+    const next = normalize({ ...data, id: uid(), createdAt: Date.now() });
+    if (!premium && totalPeople() + next.people.length > FREE_LIMIT) { $('#setDlg').close(); showPaywall(true); return; }
+    if (!confirm(`Add “${next.title}” (${next.people.length} people) as a new event?`)) return;
+    doc.events.unshift(next); openEvent(next.id); renderSettings(); toast('Backup loaded');
   } catch { toast('That file isn’t a party list backup'); }
 };
 
