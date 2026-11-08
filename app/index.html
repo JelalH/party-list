@@ -140,7 +140,9 @@ dialog::backdrop{background:rgba(0,0,0,.4);backdrop-filter:blur(3px)}
 
 /* events */
 .title-row{display:flex;align-items:center;gap:6px;min-width:0}
-.title-row #title{flex:1;min-width:0;width:auto}
+.title-row #title{flex:0 1 auto;min-width:2ch;max-width:100%}
+#titleMeasure{position:absolute;visibility:hidden;white-space:pre;font-size:28px;font-weight:700;letter-spacing:-.02em}
+@media (max-width:560px){#titleMeasure{font-size:24px}}
 .ev-btn{flex:none;width:30px;height:30px;border-radius:9px;border:0;background:var(--chip);color:var(--text);display:grid;place-items:center;cursor:pointer}
 .ev-btn:hover{background:var(--border)}
 .ev-btn svg{width:16px;height:16px}
@@ -209,7 +211,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
   <header>
     <div class="hgroup">
       <div class="title-row">
-        <input id="title" aria-label="Event name" spellcheck="false">
+        <input id="title" aria-label="Event name" spellcheck="false"><span id="titleMeasure" aria-hidden="true"></span>
         <button class="ev-btn" id="eventsBtn" aria-label="All events" title="All events">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
         </button>
@@ -549,6 +551,7 @@ function relationText(p){
 let sortable;
 function render(){
   if (document.activeElement !== $('#title')) $('#title').value = state.title;
+  fitTitle();
   const d = detailsText();
   $('#detailsLine').textContent = d || 'Add date, time & place';
   $('#detailsLine').classList.toggle('is-empty', !d);
@@ -602,7 +605,12 @@ $('#list').addEventListener('click', e => {
 });
 document.querySelectorAll('#sortSeg button').forEach(b => b.onclick = () => { state.sort = b.dataset.sort; save(); render(); });
 $('#q').oninput = render;
-$('#title').oninput = e => { state.title = e.target.value; save(); };
+// size the name box to its text so the events arrow sits right after the name
+function fitTitle(){
+  const m = $('#titleMeasure'); m.textContent = $('#title').value || ' ';
+  $('#title').style.width = Math.ceil(m.getBoundingClientRect().width + 6) + 'px';
+}
+$('#title').oninput = e => { state.title = e.target.value; fitTitle(); save(); };
 $('#title').onblur = e => { if (!e.target.value.trim()) { state.title = 'My Party'; save(); render(); } };
 $('#title').onkeydown = e => { if (e.key === 'Enter') e.target.blur(); };
 
@@ -947,6 +955,8 @@ let tt;
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 1800); }
 
 render();
+document.fonts?.ready.then(fitTitle);
+addEventListener('resize', fitTitle);
 if (sb && !load()) $('#signin').hidden = false;   // avoid a flash of the empty list before sign-in
 startAuth();
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
