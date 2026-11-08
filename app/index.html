@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Party List</title>
+<meta name="description" content="A simple guest list for your party.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#f7f7f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0d0f" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Party List">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f7f7f8; --surface:#ffffff; --text:#111113; --muted:#6e6e76; --border:#e7e7ea;
+  --chip:#f1f1f3; --accent:#111113; --accent-text:#ffffff; --danger:#d23b3b; --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d0d0f; --surface:#16161a; --text:#f3f3f5; --muted:#8e8e97; --border:#26262c;
+    --chip:#202026; --accent:#f3f3f5; --accent-text:#111113; --danger:#ff6b6b; --shadow:none;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d0d0f; --surface:#16161a; --text:#f3f3f5; --muted:#8e8e97; --border:#26262c;
+  --chip:#202026; --accent:#f3f3f5; --accent-text:#111113; --danger:#ff6b6b; --shadow:none;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font:15px/1.45 Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+button,input,textarea{font:inherit;color:inherit}
+.wrap{max-width:760px;margin:0 auto;padding:28px 16px 80px}
+
+/* header */
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:22px}
+.hgroup{flex:1;min-width:0}
+#title{font-size:28px;font-weight:700;letter-spacing:-.02em;border:0;background:transparent;padding:0;width:100%;outline:none}
+#title:focus{box-shadow:0 2px 0 var(--border)}
+.details-line{display:block;border:0;background:transparent;padding:0;margin-top:2px;font-size:14px;color:var(--text);cursor:pointer;text-align:left;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.details-line.empty{color:var(--muted)}
+.details-line:hover{text-decoration:underline}
+.stats{color:var(--muted);font-size:13px;margin-top:2px}
+.hbtns{display:flex;gap:8px;flex:none}
+.icon-btn{flex:none;width:40px;height:40px;border-radius:12px;border:1px solid var(--border);background:var(--surface);display:grid;place-items:center;cursor:pointer}
+.icon-btn:hover{background:var(--chip)}
+.icon-btn svg{width:18px;height:18px}
+
+/* toolbar */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.search{flex:1 1 220px;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:0 12px;height:42px}
+.search input{border:0;outline:0;background:transparent;width:100%}
+.search svg{width:16px;height:16px;color:var(--muted);flex:none}
+.seg{display:flex;background:var(--chip);border-radius:12px;padding:3px;height:42px}
+.seg button{border:0;background:transparent;padding:0 12px;border-radius:9px;cursor:pointer;color:var(--muted);font-weight:500;font-size:13px;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--text);box-shadow:var(--shadow)}
+.seg.sm{height:34px;border-radius:10px}
+.seg.sm button{padding:0 10px;border-radius:8px}
+.btn{height:42px;padding:0 16px;border-radius:12px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:var(--chip)}
+.btn.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.btn.primary:hover{opacity:.9}
+.btn.danger{color:var(--danger)}
+.btn.sm{height:34px;padding:0 12px;border-radius:10px;font-size:13px}
+.btn svg{width:16px;height:16px}
+
+/* share menu */
+.menu{position:relative}
+.menu summary{list-style:none}
+.menu summary::-webkit-details-marker{display:none}
+.menu-pop{position:absolute;right:0;top:48px;z-index:20;width:250px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:6px;box-shadow:0 10px 40px rgba(0,0,0,.14)}
+.menu-pop button{display:flex;width:100%;text-align:left;border:0;background:transparent;padding:10px 12px;border-radius:9px;cursor:pointer;gap:10px;align-items:center}
+.menu-pop button:hover{background:var(--chip)}
+.menu-pop svg{width:16px;height:16px;color:var(--muted)}
+.menu-pop hr{border:0;border-top:1px solid var(--border);margin:6px 4px}
+.menu-pop label{display:flex;align-items:center;gap:10px;padding:7px 12px;font-size:13px;color:var(--muted);cursor:pointer}
+
+/* list */
+#list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px 12px 8px;cursor:pointer;transition:border-color .15s}
+.row:hover{border-color:var(--muted)}
+.handle{flex:none;width:28px;height:36px;border:0;background:transparent;color:var(--muted);cursor:grab;display:grid;place-items:center;touch-action:none;border-radius:8px}
+.handle:hover{background:var(--chip)}
+.handle svg{width:14px;height:14px}
+.no-drag .handle{display:none}
+.no-drag .row{padding-left:14px}
+.idx{flex:none;width:24px;text-align:right;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+.main{flex:1;min-width:0}
+.name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{color:var(--muted);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.code{flex:none;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;background:var(--chip);padding:4px 9px;border-radius:7px;border:0;cursor:copy;letter-spacing:.04em}
+.sortable-ghost{opacity:.35}
+.sortable-chosen{box-shadow:0 8px 30px rgba(0,0,0,.15)}
+.empty{text-align:center;color:var(--muted);padding:60px 20px;border:1px dashed var(--border);border-radius:16px}
+.empty strong{display:block;color:var(--text);font-size:17px;margin-bottom:4px}
+
+/* dialogs */
+dialog{border:0;padding:0;border-radius:20px;background:var(--surface);color:var(--text);width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 40px);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(0,0,0,.4);backdrop-filter:blur(3px)}
+.dlg{padding:22px;display:flex;flex-direction:column;gap:14px}
+.dlg h2{margin:0;font-size:19px;letter-spacing:-.01em}
+.rel{font-size:13px;color:var(--muted);margin-top:3px}
+.rel button{border:0;background:transparent;padding:0;color:var(--text);font-weight:600;cursor:pointer;font-size:13px}
+.rel button:hover{text-decoration:underline}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label,.lbl{font-size:12px;font-weight:500;color:var(--muted)}
+.field input,.field textarea{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none;width:100%}
+.field input:focus,.field textarea:focus{border-color:var(--text)}
+.field textarea{resize:vertical;min-height:64px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.grid2{grid-template-columns:1fr}}
+.code-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.code-row input{width:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.08em;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 12px;outline:none}
+.code-row input:focus{border-color:var(--text)}
+.link-btn{border:0;background:transparent;color:var(--text);font-weight:500;cursor:pointer;padding:6px 0;text-align:left;font-size:14px}
+.link-btn:hover{text-decoration:underline}
+.link-btn:disabled{color:var(--muted);cursor:default;text-decoration:none}
+.dlg-actions{display:flex;gap:8px;justify-content:space-between;margin-top:6px}
+.dlg-actions .r{display:flex;gap:8px;margin-left:auto}
+.err{color:var(--danger);font-size:12px}
+
+/* settings */
+.set-sec{display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:1px solid var(--border)}
+.set-sec:first-of-type{border-top:0;padding-top:0}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.set-row span{font-size:14px}
+.stepper{display:flex;align-items:center;gap:4px;background:var(--chip);border-radius:10px;padding:3px}
+.stepper button{width:28px;height:28px;border:0;border-radius:8px;background:var(--surface);cursor:pointer;font-size:16px;line-height:1}
+.stepper output{min-width:28px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+.hint{font-size:12px;color:var(--muted);margin:0}
+
+/* sign-in */
+#signin{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px 16px}
+.signin-box{width:min(360px,100%);display:flex;flex-direction:column;gap:10px;text-align:center}
+.signin-box .logo{width:56px;height:56px;margin:0 auto 6px;border-radius:16px}
+.signin-box h1{margin:0;font-size:26px;letter-spacing:-.02em}
+.signin-box p{margin:0 0 14px;color:var(--muted)}
+.signin-box .btn{height:48px;justify-content:center;font-size:15px}
+.signin-box .btn svg{width:18px;height:18px}
+.acct{font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body{padding-bottom:env(safe-area-inset-bottom)}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--accent);color:var(--accent-text);padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;pointer-events:none;transition:.2s;z-index:100}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+@media (max-width:560px){
+  .wrap{padding-top:20px}
+  #title{font-size:24px}
+  .toolbar .seg{flex:1}
+  .toolbar .seg button{flex:1;padding:0 6px}
+  .toolbar .btn.primary{flex:1;justify-content:center}
+  .idx{display:none}
+}
+</style>
+</head>
+<body>
+<div id="signin" hidden>
+  <div class="signin-box">
+    <img class="logo" src="icon.svg" alt="">
+    <h1>Party List</h1>
+    <p>Sign in to keep your guest list on your phone and computer.</p>
+    <button class="btn" id="googleBtn">
+      <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h5.9a5 5 0 0 1-2.2 3.3v2.7h3.6c2.1-1.9 3.3-4.8 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.3-2.7l-3.6-2.7c-1 .7-2.2 1.1-3.7 1.1-2.9 0-5.3-1.9-6.2-4.5H2.1v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.8 14.2a6.6 6.6 0 0 1 0-4.3V7.1H2.1a11 11 0 0 0 0 9.9z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.2-3.2A11 11 0 0 0 2.1 7.1l3.7 2.8C6.7 7.3 9.1 5.4 12 5.4z"/></svg>
+      Continue with Google
+    </button>
+    <button class="btn" id="appleBtn">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9a4.8 4.8 0 0 0-3.8-2c-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9a5 5 0 0 0-4.2 2.6c-1.8 3.1-.5 7.7 1.3 10.2.8 1.2 1.8 2.6 3.1 2.6 1.2-.1 1.7-.8 3.2-.8 1.5 0 1.9.8 3.2.8 1.3 0 2.2-1.2 3-2.4a10 10 0 0 0 1.4-2.8c0-.1-2.6-1-2.6-4.3zM13.9 5.1c.7-.8 1.1-1.9 1-3.1-1 .1-2.2.7-2.9 1.5-.6.7-1.2 1.9-1 3 1.1.1 2.2-.6 2.9-1.4z"/></svg>
+      Continue with Apple
+    </button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="hgroup">
+      <input id="title" aria-label="Party name" spellcheck="false">
+      <button class="details-line" id="detailsLine"></button>
+      <div class="stats" id="stats"></div>
+    </div>
+    <div class="hbtns">
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+      <button class="icon-btn" id="themeBtn" aria-label="Switch light/dark mode" title="Light / dark"></button>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <label class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" placeholder="Search name, phone or code" autocomplete="off">
+    </label>
+    <div class="seg" role="group" aria-label="Sort order" id="sortSeg">
+      <button data-sort="custom">My order</button>
+      <button data-sort="az">A → Z</button>
+      <button data-sort="za">Z → A</button>
+    </div>
+    <button class="btn primary" id="addBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add guest
+    </button>
+    <details class="menu" id="menu">
+      <summary class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>Share
+      </summary>
+      <div class="menu-pop">
+        <button id="pdfBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>PDF</button>
+        <button id="docBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Word document</button>
+        <hr>
+        <label><input type="checkbox" id="incCodes" checked> Include codes</label>
+        <label><input type="checkbox" id="incContact" checked> Include contact info &amp; notes</label>
+      </div>
+    </details>
+  </div>
+
+  <ul id="list"></ul>
+  <div class="empty" id="empty" hidden></div>
+</div>
+
+<!-- person editor -->
+<dialog id="dlg">
+  <form class="dlg" id="form" autocomplete="off" novalidate>
+    <div>
+      <h2 id="dlgTitle">Add guest</h2>
+      <div class="rel" id="rel"></div>
+    </div>
+    <div class="field">
+      <label for="fCode">Entry code</label>
+      <div class="code-row">
+        <input id="fCode" inputmode="numeric" maxlength="8" aria-label="Entry code">
+        <button type="button" class="btn sm" id="textBtn">Text code</button>
+        <button type="button" class="btn sm" id="mailBtn">Email code</button>
+      </div>
+      <div class="err" id="codeErr" hidden></div>
+    </div>
+    <div class="field"><label for="fName">Full name *</label><input id="fName"></div>
+    <div class="grid2">
+      <div class="field"><label for="fEmail">Email</label><input id="fEmail" type="email" inputmode="email"></div>
+      <div class="field"><label for="fPhone">Phone number</label><input id="fPhone" type="tel" inputmode="tel"></div>
+    </div>
+    <div class="field"><label for="fNotes">Notes</label><textarea id="fNotes" placeholder="Allergies, arriving late, bringing drinks…"></textarea></div>
+    <button type="button" class="link-btn" id="addPlusBtn"></button>
+    <div class="dlg-actions">
+      <button type="button" class="btn danger" id="delBtn">Delete</button>
+      <div class="r">
+        <button type="button" class="btn" id="cancelBtn">Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- settings -->
+<dialog id="setDlg">
+  <div class="dlg">
+    <h2>Settings</h2>
+    <div class="set-sec">
+      <div class="lbl">Party details (shown on the shared list)</div>
+      <div class="grid2">
+        <div class="field"><label for="sDate">Date</label><input id="sDate" type="date"></div>
+        <div class="field"><label for="sTime">Time</label><input id="sTime" type="time"></div>
+      </div>
+      <div class="field"><label for="sPlace">Address</label><input id="sPlace" placeholder="Where is it?"></div>
+    </div>
+    <div class="set-sec">
+      <div class="set-row"><span>Code length</span>
+        <div class="seg sm" id="lenSeg"><button data-len="3">3</button><button data-len="4">4</button><button data-len="5">5</button><button data-len="6">6</button></div>
+      </div>
+      <p class="hint">Codes are picked at random. You can also type your own on any guest.</p>
+      <div class="set-row"><span>Max +1s per guest</span>
+        <div class="stepper"><button type="button" id="capDown" aria-label="Fewer">−</button><output id="capOut"></output><button type="button" id="capUp" aria-label="More">+</button></div>
+      </div>
+      <div class="set-row"><span>Sort A → Z by</span>
+        <div class="seg sm" id="nameSeg"><button data-ns="first">First name</button><button data-ns="last">Last name</button></div>
+      </div>
+    </div>
+    <div class="set-sec">
+      <div class="set-row"><span>Backup</span>
+        <div style="display:flex;gap:6px"><button class="btn sm" id="backupBtn">Save</button><button class="btn sm" id="restoreBtn">Load</button></div>
+      </div>
+      <input type="file" id="restoreFile" accept="application/json,.json" hidden>
+    </div>
+    <div class="set-sec" id="acctSec" hidden>
+      <div class="set-row"><span class="acct" id="acctEmail"></span><button class="btn sm" id="signOutBtn">Sign out</button></div>
+    </div>
+    <div class="dlg-actions"><div class="r"><button class="btn primary" id="setDone">Done</button></div></div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="config.js"></script>
+<script>
+(() => {
+const KEY = 'partylist.v1';
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+/* ---------- storage ---------- */
+const DEFAULTS = { title: 'My Party', sort: 'custom', nameSort: 'first', codeLen: 4, plusCap: 2, date: '', time: '', place: '', people: [] };
+function load(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
+function writeLocal(){ try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+function save(){ state.savedAt = Date.now(); writeLocal(); schedulePush(); }
+function normalize(s){
+  s = { ...DEFAULTS, ...(s || {}) };
+  // older version kept +1s inside each guest; turn them into people of their own
+  if (Array.isArray(s.guests) && !(s.people && s.people.length)) {
+    s.people = [];
+    s.guests.forEach(g => {
+      s.people.push({ id: g.id, code: g.code, name: g.name, email: g.email || '', phone: g.phone || '', notes: g.notes || '', plusOf: null });
+      (g.plus || []).forEach(p => s.people.push({ id: p.id || uid(), code: p.code, name: p.name, email: '', phone: '', notes: '', plusOf: g.id }));
+    });
+  }
+  delete s.guests;
+  if (!Array.isArray(s.people)) s.people = [];
+  return s;
+}
+let state = normalize(load());
+
+/* ---------- account + online saving (Supabase) ---------- */
+const CFG = window.PARTY_CONFIG || {};
+const sb = CFG.supabaseUrl && CFG.supabaseKey && window.supabase
+  ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey, { auth: { flowType: 'pkce', persistSession: true, detectSessionInUrl: true } })
+  : null;   // no project configured: the list just lives on this device
+let user = null, pushTimer = null, dirty = false;
+
+function schedulePush(){
+  if (!sb || !user) return;
+  dirty = true; clearTimeout(pushTimer); pushTimer = setTimeout(push, 700);
+}
+async function push(){
+  if (!sb || !user || !dirty) return;
+  dirty = false;
+  const { error } = await sb.from('party_lists').upsert({ user_id: user.id, data: state, updated_at: new Date().toISOString() });
+  if (error) { dirty = true; if (navigator.onLine) toast('Couldn’t save online, will try again'); }
+}
+// fetch the online copy; whichever copy was changed last wins
+async function pull(){
+  if (!sb || !user) return;
+  const { data, error } = await sb.from('party_lists').select('data').eq('user_id', user.id).maybeSingle();
+  if (error) return;
+  const remote = data?.data;
+  if (remote && (remote.savedAt || 0) > (state.savedAt || 0)) {
+    if ($('#dlg').open || $('#setDlg').open) return;   // don't swap the list mid-edit
+    state = normalize(remote); state.owner = user.id; writeLocal(); render();
+  } else if (state.savedAt && (!remote || state.savedAt > (remote.savedAt || 0))) {
+    dirty = true; push();
+  }
+}
+function setUser(u){
+  const changed = (u?.id || null) !== (user?.id || null);
+  user = u;
+  $('#signin').hidden = !sb || !!u;
+  $('#acctSec').hidden = !u;
+  $('#acctEmail').textContent = u ? (u.email || 'Signed in') : '';
+  if (u && changed) {
+    if (state.owner && state.owner !== u.id) state = normalize(null);   // someone else's list was cached here
+    state.owner = u.id; writeLocal(); render();
+    if (/[?&]code=/.test(location.search)) history.replaceState(null, '', location.pathname);
+    pull();
+  }
+}
+async function startAuth(){
+  if (!sb) return;
+  const redirectTo = location.origin + location.pathname;
+  $('#googleBtn').onclick = () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+  $('#appleBtn').onclick = () => sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo } });
+  $('#signOutBtn').onclick = async () => {
+    await push();
+    await sb.auth.signOut();
+    try { localStorage.removeItem(KEY); } catch {}
+    state = normalize(null); render(); $('#setDlg').close();
+  };
+  const { data: { session } } = await sb.auth.getSession();
+  setUser(session?.user || null);
+  sb.auth.onAuthStateChange((_e, s) => setUser(s?.user || null));
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' ? pull() : push());
+  addEventListener('online', push);
+}
+
+const byId = id => state.people.find(p => p.id === id);
+const plusesOf = id => state.people.filter(p => p.plusOf === id);
+
+/* ---------- random codes ---------- */
+function randomDigits(len){
+  let out = '';
+  while (out.length < len) {
+    for (const b of crypto.getRandomValues(new Uint8Array(16))) {
+      if (b >= 250) continue;                       // keep it unbiased
+      const d = b % 10;
+      if (!out.length && d === 0) continue;         // no leading zero
+      out += d;
+      if (out.length === len) break;
+    }
+  }
+  return out;
+}
+function genCode(used = new Set(state.people.map(p => p.code))){
+  let len = state.codeLen;
+  // if almost every code of this length is taken, quietly use one more digit
+  while (len < 8 && [...used].filter(c => c.length === len).length >= 9 * 10 ** (len - 1) * 0.8) len++;
+  let c; do { c = randomDigits(len); } while (used.has(c));
+  return c;
+}
+
+/* ---------- theme ---------- */
+const sun = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>';
+const moon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>';
+const isDark = () => { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
+function applyTheme(t){ if (t) document.documentElement.dataset.theme = t; $('#themeBtn').innerHTML = isDark() ? sun : moon; }
+try { applyTheme(localStorage.getItem(KEY + '.theme')); } catch { applyTheme(); }
+$('#themeBtn').onclick = () => { const t = isDark() ? 'light' : 'dark'; applyTheme(t); try { localStorage.setItem(KEY + '.theme', t); } catch {} };
+
+/* ---------- helpers ---------- */
+function sortKey(p){
+  const parts = p.name.trim().split(/\s+/);
+  return state.nameSort === 'last' && parts.length > 1 ? parts.at(-1) + ' ' + parts.slice(0, -1).join(' ') : p.name;
+}
+const cmp = (a, b) => sortKey(a).localeCompare(sortKey(b), undefined, { sensitivity: 'base' });
+function ordered(){
+  const list = [...state.people];
+  if (state.sort === 'az') list.sort(cmp);
+  if (state.sort === 'za') list.sort((a, b) => cmp(b, a));
+  return list;
+}
+function whenText(){
+  const bits = [];
+  if (state.date) bits.push(new Date(state.date + 'T00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }));
+  if (state.time) bits.push(state.time);
+  return bits.join(' · ');
+}
+const detailsText = () => [whenText(), state.place].filter(Boolean).join(' · ');
+function countText(){
+  const plus = state.people.filter(p => p.plusOf).length;
+  const n = state.people.length;
+  if (!n) return 'No one on the list yet';
+  return `${n} ${n === 1 ? 'person' : 'people'}` + (plus ? ` · ${n - plus} invited + ${plus} plus-one${plus === 1 ? '' : 's'}` : '');
+}
+function relationText(p){
+  if (p.plusOf) { const h = byId(p.plusOf); return h ? `+1 of ${h.name}` : ''; }
+  const ps = plusesOf(p.id);
+  return ps.length ? `Bringing ${ps.map(x => x.name).join(', ')}` : '';
+}
+
+/* ---------- list ---------- */
+let sortable;
+function render(){
+  if (document.activeElement !== $('#title')) $('#title').value = state.title;
+  const d = detailsText();
+  $('#detailsLine').textContent = d || 'Add date, time & place';
+  $('#detailsLine').classList.toggle('empty', !d);
+  $('#stats').textContent = countText();
+  document.querySelectorAll('#sortSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.sort === state.sort));
+
+  const q = $('#q').value.trim().toLowerCase();
+  const digits = q.replace(/\s/g, '');
+  const all = ordered();
+  const shown = all.filter(p => !q
+    || [p.name, p.email, p.phone, p.notes].join(' ').toLowerCase().includes(q)
+    || (/^\d+$/.test(digits) && p.code.includes(digits)));
+
+  const canDrag = state.sort === 'custom' && !q;
+  const list = $('#list');
+  list.classList.toggle('no-drag', !canDrag);
+  list.innerHTML = shown.map(p => {
+    const meta = [p.email, p.phone].filter(Boolean).join(' · ');
+    return `<li class="row" data-id="${p.id}">
+      <button class="handle" aria-label="Drag to reorder" tabindex="-1"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
+      <div class="idx">${all.indexOf(p) + 1}</div>
+      <div class="main"><div class="name">${esc(p.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</div>
+      <button class="code" data-copy="${p.code}" title="Copy code">${p.code}</button>
+    </li>`;
+  }).join('');
+
+  const empty = $('#empty');
+  if (!state.people.length) { empty.hidden = false; empty.innerHTML = '<strong>No guests yet</strong>Tap “Add guest” to start your list.'; }
+  else if (!shown.length) { empty.hidden = false; empty.innerHTML = '<strong>No matches</strong>Try a different search.'; }
+  else empty.hidden = true;
+
+  if (window.Sortable) {
+    if (!sortable) sortable = Sortable.create(list, {
+      handle: '.handle', animation: 160, ghostClass: 'sortable-ghost', chosenClass: 'sortable-chosen',
+      onEnd(){
+        const ids = [...list.children].map(li => li.dataset.id);
+        state.people = ids.map(byId).filter(Boolean);
+        save(); render();
+      }
+    });
+    sortable.option('disabled', !canDrag);
+  }
+}
+
+$('#list').addEventListener('click', e => {
+  const copy = e.target.closest('[data-copy]');
+  if (copy) { e.stopPropagation(); navigator.clipboard?.writeText(copy.dataset.copy).then(() => toast('Code copied'), () => {}); return; }
+  if (e.target.closest('.handle')) return;
+  const row = e.target.closest('.row');
+  if (row) openEditor(row.dataset.id);
+});
+document.querySelectorAll('#sortSeg button').forEach(b => b.onclick = () => { state.sort = b.dataset.sort; save(); render(); });
+$('#q').oninput = render;
+$('#title').oninput = e => { state.title = e.target.value; save(); };
+$('#title').onblur = e => { if (!e.target.value.trim()) { state.title = 'My Party'; save(); render(); } };
+
+/* ---------- editor ---------- */
+const dlg = $('#dlg');
+let editId = null, editPlusOf = null;
+function openEditor(id, plusOf = null){
+  const p = id ? byId(id) : null;
+  editId = p ? p.id : null;
+  editPlusOf = p ? p.plusOf : plusOf;
+  $('#dlgTitle').textContent = p ? p.name : (editPlusOf ? 'Add a +1' : 'Add guest');
+  $('#fCode').value = p ? p.code : genCode();
+  $('#codeErr').hidden = true;
+  $('#fName').value = p?.name || '';
+  $('#fEmail').value = p?.email || '';
+  $('#fPhone').value = p?.phone || '';
+  $('#fNotes').value = p?.notes || '';
+  $('#delBtn').style.visibility = p ? 'visible' : 'hidden';
+
+  // who they came with / who they're bringing
+  const rel = $('#rel');
+  if (editPlusOf) {
+    const h = byId(editPlusOf);
+    rel.innerHTML = h ? `+1 of <button type="button" data-open="${h.id}">${esc(h.name)}</button>` : '';
+  } else {
+    const ps = p ? plusesOf(p.id) : [];
+    rel.innerHTML = ps.length ? 'Bringing ' + ps.map(x => `<button type="button" data-open="${x.id}">${esc(x.name)}</button>`).join(', ') : '';
+  }
+
+  // +1 button (only for invited guests, respects the cap)
+  const btn = $('#addPlusBtn');
+  const used = p ? plusesOf(p.id).length : 0;
+  btn.hidden = !!editPlusOf || state.plusCap === 0;
+  btn.disabled = used >= state.plusCap;
+  btn.textContent = used >= state.plusCap ? `+1 limit reached (${state.plusCap})` : `+ Add a +1 (${used} of ${state.plusCap})`;
+
+  updateSendBtns();
+  if (!dlg.open) dlg.showModal();
+  if (!p) $('#fName').focus();
+}
+function updateSendBtns(){
+  $('#textBtn').hidden = !$('#fPhone').value.trim();
+  $('#mailBtn').hidden = !$('#fEmail').value.trim();
+}
+$('#fPhone').oninput = updateSendBtns;
+$('#fEmail').oninput = updateSendBtns;
+$('#fCode').oninput = e => { e.target.value = e.target.value.replace(/\D/g, ''); $('#codeErr').hidden = true; };
+
+// validate the form and write it into the list; returns the saved person or null
+function commit(){
+  const name = $('#fName').value.trim();
+  const code = $('#fCode').value.trim();
+  if (!name) { $('#fName').focus(); toast('Add a name first'); return null; }
+  const clash = state.people.find(p => p.code === code && p.id !== editId);
+  if (code.length < 3 || clash) {
+    $('#codeErr').textContent = clash ? `${clash.name} already has this code` : 'Codes need at least 3 digits';
+    $('#codeErr').hidden = false; $('#fCode').focus(); return null;
+  }
+  const data = { name, code, email: $('#fEmail').value.trim(), phone: $('#fPhone').value.trim(), notes: $('#fNotes').value.trim() };
+  let p;
+  if (editId) { p = byId(editId); Object.assign(p, data); }
+  else {
+    p = { id: uid(), plusOf: editPlusOf, ...data };
+    if (editPlusOf) {
+      // place a new +1 right after their host (and any +1s already there)
+      let at = state.people.findIndex(x => x.id === editPlusOf);
+      while (at + 1 < state.people.length && state.people[at + 1].plusOf === editPlusOf) at++;
+      state.people.splice(at + 1, 0, p);
+    } else state.people.push(p);
+    editId = p.id;
+  }
+  save(); render();
+  return p;
+}
+$('#form').onsubmit = e => {
+  e.preventDefault();
+  const isNew = !byId(editId);
+  const p = commit();
+  if (p) { dlg.close(); toast(isNew ? `${p.name} added` : 'Saved'); }
+};
+$('#addPlusBtn').onclick = () => { const p = commit(); if (p) openEditor(null, p.id); };
+$('#rel').addEventListener('click', e => {
+  const id = e.target.dataset.open; if (!id) return;
+  if ($('#fName').value.trim() && !commit()) return;
+  openEditor(id);
+});
+$('#addBtn').onclick = () => openEditor(null);
+$('#cancelBtn').onclick = () => dlg.close();
+$('#delBtn').onclick = () => {
+  const p = byId(editId); if (!p) return;
+  const ps = plusesOf(p.id);
+  const msg = ps.length ? `Remove ${p.name}? Their +1s (${ps.map(x => x.name).join(', ')}) will be removed too.` : `Remove ${p.name} from the list?`;
+  if (!confirm(msg)) return;
+  const gone = new Set([p.id, ...ps.map(x => x.id)]);
+  state.people = state.people.filter(x => !gone.has(x.id));
+  save(); render(); dlg.close(); toast('Removed');
+};
+
+// send someone their code through their own messages / mail app
+function inviteMessage(){
+  const first = $('#fName').value.trim().split(/\s+/)[0] || 'there';
+  const when = whenText();
+  return `Hi ${first}! You're on the guest list for ${state.title}${when ? ' (' + when + ')' : ''}${state.place ? ' at ' + state.place : ''}. Your entry code is ${$('#fCode').value} – show it at the door.`;
+}
+$('#textBtn').onclick = () => { location.href = `sms:${$('#fPhone').value.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(inviteMessage())}`; };
+$('#mailBtn').onclick = () => { location.href = `mailto:${encodeURIComponent($('#fEmail').value.trim())}?subject=${encodeURIComponent('Your code for ' + state.title)}&body=${encodeURIComponent(inviteMessage())}`; };
+
+/* ---------- settings ---------- */
+const setDlg = $('#setDlg');
+function renderSettings(){
+  $('#sDate').value = state.date; $('#sTime').value = state.time; $('#sPlace').value = state.place;
+  document.querySelectorAll('#lenSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.len === state.codeLen));
+  document.querySelectorAll('#nameSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.ns === state.nameSort));
+  $('#capOut').value = state.plusCap;
+}
+function openSettings(){ renderSettings(); setDlg.showModal(); }
+$('#settingsBtn').onclick = openSettings;
+$('#detailsLine').onclick = openSettings;
+$('#setDone').onclick = () => setDlg.close();
+['sDate', 'sTime', 'sPlace'].forEach(id => $('#' + id).oninput = e => {
+  state[{ sDate: 'date', sTime: 'time', sPlace: 'place' }[id]] = e.target.value; save(); render();
+});
+document.querySelectorAll('#lenSeg button').forEach(b => b.onclick = () => {
+  const len = +b.dataset.len;
+  if (len === state.codeLen) return;
+  state.codeLen = len;
+  const other = state.people.filter(p => p.code.length !== len);
+  if (other.length && confirm(`Give everyone a new ${len}-digit code?\n\nCodes you've already sent out will stop matching. Press Cancel to keep the current codes and only use ${len} digits for new guests.`)) {
+    const used = new Set();
+    state.people.forEach(p => { p.code = genCode(used); used.add(p.code); });
+    toast('Everyone has a new code');
+  }
+  save(); render(); renderSettings();
+});
+document.querySelectorAll('#nameSeg button').forEach(b => b.onclick = () => { state.nameSort = b.dataset.ns; save(); render(); renderSettings(); });
+$('#capDown').onclick = () => { state.plusCap = Math.max(0, state.plusCap - 1); save(); renderSettings(); };
+$('#capUp').onclick = () => { state.plusCap = Math.min(10, state.plusCap + 1); save(); renderSettings(); };
+
+/* ---------- export ---------- */
+const menu = $('#menu');
+document.addEventListener('click', e => { if (menu.open && !menu.contains(e.target)) menu.open = false; });
+const slug = () => (state.title.trim() || 'party').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'party';
+const stamp = () => 'List made ' + new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+function columns(){
+  const codes = $('#incCodes').checked, contact = $('#incContact').checked;
+  const cols = [['#', (p, i) => String(i + 1)], ['Name', p => p.name]];
+  if (codes) cols.push(['Code', p => p.code]);
+  if (contact) cols.push(['Email', p => p.email], ['Phone', p => p.phone]);
+  cols.push(['+1', relationText]);
+  if (contact) cols.push(['Notes', p => p.notes]);
+  return cols;
+}
+async function deliver(blob, filename){
+  const file = new File([blob], filename, { type: blob.type });
+  if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: state.title }); return; } catch (err) { if (err.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast('Downloaded ' + filename);
+}
+$('#pdfBtn').onclick = () => {
+  menu.open = false;
+  if (!state.people.length) return toast('Add some guests first');
+  if (!window.jspdf) return toast('PDF tool didn’t load — check your internet');
+  const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+  const cols = columns();
+  let y = 52;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.setTextColor(17); doc.text(state.title, 40, y);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+  if (detailsText()) { y += 20; doc.setTextColor(40); doc.text(detailsText(), 40, y); }
+  y += 16; doc.setFontSize(9); doc.setTextColor(120); doc.text(countText() + ' · ' + stamp(), 40, y);
+  const ci = cols.findIndex(c => c[0] === 'Code');
+  const colStyles = { 0: { cellWidth: 26, halign: 'right', textColor: 120 } };
+  if (ci > -1) colStyles[ci] = { cellWidth: 60, font: 'courier' };
+  doc.autoTable({
+    startY: y + 16, margin: { left: 40, right: 40 },
+    head: [cols.map(c => c[0])],
+    body: ordered().map((p, i) => cols.map(c => c[1](p, i) || '')),
+    styles: { fontSize: 9, cellPadding: 6, valign: 'top', lineColor: [230, 230, 233], lineWidth: 0.5, textColor: 20 },
+    headStyles: { fillColor: [17, 17, 19], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 248, 249] },
+    columnStyles: colStyles,
+  });
+  deliver(doc.output('blob'), slug() + '-guest-list.pdf');
+};
+$('#docBtn').onclick = () => {
+  menu.open = false;
+  if (!state.people.length) return toast('Add some guests first');
+  const cols = columns();
+  const rows = ordered().map((p, i) => '<tr>' + cols.map(c => `<td>${esc(c[1](p, i) || '')}</td>`).join('') + '</tr>').join('');
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(state.title)}</title>
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
+<style>@page{size:A4 landscape;margin:2cm}body{font-family:Calibri,Arial,sans-serif;font-size:10pt}h1{font-size:20pt;margin:0}.d{font-size:11pt;margin:3pt 0 0}.s{color:#777;font-size:9pt;margin:2pt 0 12pt}table{border-collapse:collapse;width:100%}th{background:#111113;color:#fff;text-align:left;padding:5pt}td{border:1px solid #ddd;padding:5pt;vertical-align:top}</style></head>
+<body><h1>${esc(state.title)}</h1>${detailsText() ? `<p class="d">${esc(detailsText())}</p>` : ''}<p class="s">${esc(countText() + ' · ' + stamp())}</p>
+<table><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></body></html>`;
+  deliver(new Blob(['﻿', html], { type: 'application/msword' }), slug() + '-guest-list.doc');
+};
+
+/* ---------- backup ---------- */
+$('#backupBtn').onclick = () => deliver(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }), slug() + '-backup.json');
+$('#restoreBtn').onclick = () => $('#restoreFile').click();
+$('#restoreFile').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data.people) && !Array.isArray(data.guests)) throw 0;
+    const next = normalize(data);
+    if (!confirm(`Replace the current list with “${next.title}” (${next.people.length} people)?`)) return;
+    state = next; state.owner = user?.id; save(); render(); renderSettings(); toast('Backup loaded');
+  } catch { toast('That file isn’t a party list backup'); }
+};
+
+/* ---------- toast ---------- */
+let tt;
+function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 1800); }
+
+render();
+if (sb && !load()) $('#signin').hidden = false;   // avoid a flash of the empty list before sign-in
+startAuth();
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+})();
+</script>
+</body>
+</html>
