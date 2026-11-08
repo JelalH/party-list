@@ -47,7 +47,7 @@ header{display:flex;align-items:flex-start;justify-content:space-between;gap:12p
 #title{font-size:28px;font-weight:700;letter-spacing:-.02em;border:0;background:transparent;padding:0;width:100%;outline:none}
 #title:focus{box-shadow:0 2px 0 var(--border)}
 .details-line{display:block;border:0;background:transparent;padding:0;margin-top:2px;font-size:14px;color:var(--text);cursor:pointer;text-align:left;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.details-line.empty{color:var(--muted)}
+.details-line.is-empty{color:var(--muted)}
 .details-line:hover{text-decoration:underline}
 .stats{color:var(--muted);font-size:13px;margin-top:2px}
 .hbtns{display:flex;gap:8px;flex:none}
@@ -462,7 +462,7 @@ function render(){
   if (document.activeElement !== $('#title')) $('#title').value = state.title;
   const d = detailsText();
   $('#detailsLine').textContent = d || 'Add date, time & place';
-  $('#detailsLine').classList.toggle('empty', !d);
+  $('#detailsLine').classList.toggle('is-empty', !d);
   $('#stats').textContent = countText();
   document.querySelectorAll('#sortSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.sort === state.sort));
 
