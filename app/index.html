@@ -164,6 +164,9 @@ dialog::backdrop{background:rgba(0,0,0,.4);backdrop-filter:blur(3px)}
 .pay-cta{width:100%;height:48px;justify-content:center;font-size:16px}
 .pay-later{text-align:center;color:var(--muted)}
 .prem-title{font-weight:600;font-size:14px}
+.native-only{display:none}
+.native .native-only{display:block}
+.native body{padding-top:env(safe-area-inset-top)}
 
 /* sign-in */
 #signin{position:fixed;inset:0;z-index:50;background:var(--bg);display:grid;place-items:center;padding:24px 16px}
@@ -314,6 +317,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
     </ul>
     <button class="btn primary pay-cta" id="payBtn"></button>
     <button class="link-btn pay-later" id="payClose">Not now</button>
+    <button class="link-btn pay-later native-only" id="payRestore">Restore purchase</button>
   </div>
 </dialog>
 
@@ -423,6 +427,30 @@ const sb = CFG.supabaseUrl && CFG.supabaseKey && window.supabase
   : null;   // no project configured: the list just lives on this device
 let user = null, pushTimer = null, dirty = false;
 
+/* ---------- phone app bridge (iOS / Android wrapper) ---------- */
+const NATIVE = !!window.ReactNativeWebView;
+if (NATIVE) document.documentElement.classList.add('native');
+function toNative(msg){ if (NATIVE) window.ReactNativeWebView.postMessage(JSON.stringify(msg)); }
+window.partyNative = {
+  // the app signed someone in natively: adopt that session here
+  async onSession(s){
+    if (!sb || !s?.access_token) return;
+    const { error } = await sb.auth.setSession({ access_token: s.access_token, refresh_token: s.refresh_token });
+    if (error) toast('Sign-in didn’t work, please try again');
+  },
+  onSignInFailed(msg){ if (msg) toast(msg); },
+  // the app finished an in-app purchase (or restore): wait for the store's webhook to land
+  async onPurchase(result){
+    $('#payBtn').disabled = false; $('#payBtn').textContent = `Unlock for ${PRICE}`;
+    if (result === 'cancelled') return;
+    if (result === 'failed') return toast('The purchase didn’t go through');
+    if (result === 'nothing') return toast('No previous purchase found');
+    payDlg.close();
+    for (let i = 0; i < 12 && !premium; i++) { await refreshPremium(); if (!premium) await new Promise(r => setTimeout(r, 1500)); }
+    toast(premium ? 'Premium unlocked, thank you!' : 'Purchase received, Premium will appear shortly');
+  },
+};
+
 function schedulePush(){
   if (!sb || !user) return;
   dirty = true; clearTimeout(pushTimer); pushTimer = setTimeout(push, 700);
@@ -468,11 +496,14 @@ function setUser(u){
 async function startAuth(){
   if (!sb) return;
   const redirectTo = location.origin + location.pathname;
-  $('#googleBtn').onclick = () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-  $('#appleBtn').onclick = () => sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo } });
+  // inside the phone app, sign-in happens natively (Apple sheet / system browser), then the
+  // app hands the session over through window.partyNative.onSession
+  $('#googleBtn').onclick = () => NATIVE ? toNative({ type: 'signin', provider: 'google' }) : sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+  $('#appleBtn').onclick = () => NATIVE ? toNative({ type: 'signin', provider: 'apple' }) : sb.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo } });
   $('#signOutBtn').onclick = async () => {
     await push();
     await sb.auth.signOut();
+    toNative({ type: 'signout' });
     try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.premium'); } catch {}
     premium = false; useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
   };
@@ -707,9 +738,13 @@ function showPaywall(hitLimit){
   payDlg.showModal();
 }
 $('#payClose').onclick = () => payDlg.close();
+$('#payRestore').onclick = () => { if (!user) return toast('Sign in first'); toNative({ type: 'restore', userId: user.id }); };
 $('#payBtn').onclick = async () => {
   if (!user) return toast('Sign in first');
-  $('#payBtn').disabled = true; $('#payBtn').textContent = 'Opening checkout…';
+  $('#payBtn').disabled = true;
+  // App Store / Google Play rules: in the phone app, pay through the store
+  if (NATIVE) { $('#payBtn').textContent = 'Opening…'; toNative({ type: 'purchase', userId: user.id }); return; }
+  $('#payBtn').textContent = 'Opening checkout…';
   try {
     const { data, error } = await sb.functions.invoke('create-checkout', { body: { returnUrl: location.origin + location.pathname } });
     if (error || !data?.url) throw error || new Error('no url');
@@ -886,6 +921,11 @@ function columns(){
   return cols;
 }
 async function deliver(blob, filename){
+  if (NATIVE) {   // phone app: hand the file to the native share sheet
+    const base64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+    toNative({ type: 'share', filename, mime: blob.type, base64 });
+    return;
+  }
   const file = new File([blob], filename, { type: blob.type });
   if (matchMedia('(pointer: coarse)').matches && navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file], title: state.title }); return; } catch (err) { if (err.name === 'AbortError') return; }

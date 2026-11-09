@@ -1,0 +1,53 @@
+{
+  "expo": {
+    "name": "Party List",
+    "slug": "party-list",
+    "scheme": "partylist",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#0d0d0f",
+    "ios": {
+      "bundleIdentifier": "io.github.jelalh.partylist",
+      "supportsTablet": true,
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "io.github.jelalh.partylist",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#111113"
+      },
+      "permissions": []
+    },
+    "plugins": [
+      "expo-apple-authentication",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 120,
+          "backgroundColor": "#f7f7f8",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#0d0d0f"
+          }
+        }
+      ],
+      "expo-sharing",
+      "expo-status-bar"
+    ],
+    "extra": {
+      "siteUrl": "https://jelalh.github.io/party-list/",
+      "supabaseUrl": "https://xdgrovfkdtvovryyybie.supabase.co",
+      "supabaseKey": "sb_publishable_AfRUGYgqjDBpCn2CJ7B4Qw_FVmov8Hq",
+      "revenuecatIosKey": "",
+      "revenuecatAndroidKey": ""
+    }
+  }
+}
