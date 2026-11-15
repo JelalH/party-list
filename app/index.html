@@ -359,6 +359,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
     </div>
     <div class="set-sec" id="acctSec" hidden>
       <div class="set-row"><span class="acct" id="acctEmail"></span><button class="btn sm" id="signOutBtn">Sign out</button></div>
+      <div class="set-row"><span class="hint">Remove your account and every list in it</span><button class="btn sm danger" id="deleteAcctBtn">Delete account</button></div>
     </div>
     <div class="dlg-actions"><div class="r"><button class="btn primary" id="setDone">Done</button></div></div>
   </div>
@@ -506,6 +507,21 @@ async function startAuth(){
     toNative({ type: 'signout' });
     try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.premium'); } catch {}
     premium = false; useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
+  };
+  // delete the account and everything saved with it (App Store + Play require this in the app)
+  $('#deleteAcctBtn').onclick = async () => {
+    const note = premium && NATIVE ? '\n\nPremium stays with your Apple or Google account: if you sign up again, tap “Restore purchase”.' : '';
+    if (!confirm('Delete your account, and all your events and guests? This can’t be undone.' + note)) return;
+    $('#deleteAcctBtn').disabled = true;
+    const { data, error } = await sb.functions.invoke('delete-account', { body: {} });
+    $('#deleteAcctBtn').disabled = false;
+    if (error || !data?.deleted) return toast('Couldn’t delete your account, please try again');
+    clearTimeout(pushTimer); dirty = false;
+    await sb.auth.signOut({ scope: 'local' });
+    toNative({ type: 'signout' });
+    try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.premium'); } catch {}
+    premium = false; useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
+    toast('Your account has been deleted');
   };
   const { data: { session } } = await sb.auth.getSession();
   setUser(session?.user || null);
