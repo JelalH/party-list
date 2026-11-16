@@ -5,13 +5,14 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 type Person = { id: string; name: string; email?: string; code?: string };
-type Event = { id: string; title: string; date?: string; time?: string; place?: string; people: Person[] };
+type Event = { id: string; title: string; date?: string; time?: string; place?: string; hostEmail?: string; hostPhone?: string; people: Person[] };
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 
 Deno.serve(async () => {
   const key = Deno.env.get("RESEND_API_KEY");
   if (!key) return Response.json({ skipped: "RESEND_API_KEY not set" });
   const from = Deno.env.get("EMAIL_FROM") ?? "Party List <reminders@tuex.site>";
+  const site = "https://partylist.tuex.site/";
   const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const tomorrow = new Date(Date.now() + 864e5).toLocaleDateString("en-CA", { timeZone: "Europe/London" }); // YYYY-MM-DD
 
@@ -26,12 +27,19 @@ Deno.serve(async () => {
     const guest = ev?.people.find((p) => p.id === r.person_id);
     if (!ev || ev.date !== tomorrow || !guest?.email) continue;
     const first = guest.name.trim().split(/\s+/)[0];
-    const text = `Hi ${first}, just a reminder: ${ev.title} is tomorrow${ev.time ? ` at ${ev.time}` : ""}${ev.place ? `, ${ev.place}` : ""}.`
-      + `${guest.code ? ` Your entry code is ${guest.code}.` : ""} See you there!`;
+    const link = `${site}rsvp.html?t=${r.token}`;
+    const host = [ev.hostEmail, ev.hostPhone].filter(Boolean).join(" · ");
+    const lines = [
+      `Hi ${first}, just a reminder: ${ev.title} is tomorrow${ev.time ? ` at ${ev.time}` : ""}${ev.place ? `, ${ev.place}` : ""}.`
+        + `${guest.code ? ` Your entry code is ${guest.code}.` : ""} See you there!`,
+      `Can't make it after all? Change your answer: ${link}`,
+      ...(host ? [`Questions? Contact the host: ${host}`] : []),
+    ];
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: guest.email, subject: `Tomorrow: ${ev.title}`, text, html: `<p>${esc(text)}</p>` }),
+      body: JSON.stringify({ from, to: guest.email, subject: `Tomorrow: ${ev.title}`, text: lines.join("\n\n"),
+        html: lines.map((l) => `<p>${esc(l).replace(esc(link), `<a href="${link}">${esc(link)}</a>`)}</p>`).join("") }),
     });
     if (!res.ok) { console.error("resend", res.status, await res.text()); continue; }   // not marked, so a later run the same day retries it
     await db.from("rsvps").update({ reminded_at: new Date().toISOString() }).eq("token", r.token);

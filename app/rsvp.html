@@ -11,7 +11,9 @@
 :root{--bg:#f7f7f8;--surface:#fff;--text:#111113;--muted:#6e6e76;--border:#e7e7ea;--accent:#111113;--accent-text:#fff;color-scheme:light}
 @media (prefers-color-scheme: dark){:root{--bg:#0d0d0f;--surface:#16161a;--text:#f3f3f5;--muted:#8e8e97;--border:#26262c;--accent:#f3f3f5;--accent-text:#111113;color-scheme:dark}}
 body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px 16px;box-sizing:border-box;background:var(--bg);color:var(--text);font:16px/1.5 Inter,system-ui,-apple-system,sans-serif}
-.card{width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 22px;text-align:center}
+*{box-sizing:border-box}
+body{grid-template-columns:minmax(0,420px);justify-content:center}
+.card{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 22px;text-align:center}
 h1{margin:0 0 6px;font-size:24px;letter-spacing:-.02em}
 p{margin:0;color:var(--muted)}
 .when{margin-top:10px;color:var(--text);font-weight:600}
@@ -20,6 +22,8 @@ button{flex:1;height:50px;border-radius:14px;border:1px solid var(--border);back
 button.yes{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
 button:disabled{opacity:.5}
 .done{margin-top:18px;font-weight:600;color:var(--text)}
+.small{margin-top:14px;font-size:14px}
+a{color:var(--text)}
 </style>
 </head>
 <body>
@@ -30,6 +34,11 @@ const API = (window.PARTY_CONFIG || {}).supabaseUrl + '/functions/v1/rsvp';
 const token = new URLSearchParams(location.search).get('t') || '';
 const card = document.getElementById('card');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const contact = ev => {
+  const bits = [ev.hostEmail && `<a href="mailto:${esc(ev.hostEmail)}">${esc(ev.hostEmail)}</a>`,
+    ev.hostPhone && `<a href="tel:${esc(ev.hostPhone.replace(/[^\d+]/g, ''))}">${esc(ev.hostPhone)}</a>`].filter(Boolean);
+  return bits.length ? `<p class="small">Questions? Contact the host: ${bits.join(' · ')}</p>` : '';
+};
 const answered = a => a === 'yes' ? 'You’re going. See you there! We’ll email you a reminder the day before.' : 'Thanks for letting them know you can’t make it.';
 
 async function load(){
@@ -39,7 +48,9 @@ async function load(){
   const when = [ev.date && new Date(ev.date + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), ev.time, ev.place].filter(Boolean).join(' · ');
   card.innerHTML = `<p>Hi ${esc(ev.name.split(/\s+/)[0])}, can you make it to</p><h1>${esc(ev.title)}</h1>${when ? `<p class="when">${esc(when)}</p>` : ''}
     <div class="btns"><button class="yes" data-a="yes">Yes, I’ll be there</button><button data-a="no">Can’t make it</button></div>
-    <p class="done" id="done">${ev.answer ? esc(answered(ev.answer)) : ''}</p>`;
+    <p class="done" id="done">${ev.answer ? esc(answered(ev.answer)) : ''}</p>
+    <p class="small">Plans change? Open this link again any time to change your answer.</p>
+    ${contact(ev)}`;
   card.querySelectorAll('button').forEach(b => b.onclick = () => answer(b.dataset.a));
 }
 async function answer(a){

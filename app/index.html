@@ -364,6 +364,11 @@ body{padding-bottom:env(safe-area-inset-bottom)}
         <div class="field"><label for="sTime">Time</label><input id="sTime" type="time"></div>
       </div>
       <div class="field"><label for="sPlace">Address</label><input id="sPlace" placeholder="Where is it?"></div>
+      <div class="lbl">Host or promoter contact (optional, shown to guests on RSVP links and reminders)</div>
+      <div class="grid2">
+        <div class="field"><label for="sHostEmail">Email</label><input id="sHostEmail" type="email" inputmode="email"></div>
+        <div class="field"><label for="sHostPhone">Phone number</label><input id="sHostPhone" type="tel" inputmode="tel"></div>
+      </div>
     </div>
     <div class="set-sec">
       <div class="set-row"><span>Code length</span>
@@ -406,7 +411,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 /* ---------- storage ---------- */
-const DEFAULTS = { title: 'My Party', sort: 'custom', nameSort: 'first', codeLen: 4, plusCap: 2, date: '', time: '', place: '', people: [] };
+const DEFAULTS = { title: 'My Party', sort: 'custom', nameSort: 'first', codeLen: 4, plusCap: 2, date: '', time: '', place: '', hostEmail: '', hostPhone: '', people: [] };
 function load(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
 function writeLocal(){ try { localStorage.setItem(KEY, JSON.stringify(doc)); } catch {} }
 function save(){ doc.savedAt = Date.now(); writeLocal(); schedulePush(); }
@@ -950,6 +955,7 @@ $('#rsvpBtn').onclick = async () => {
 const setDlg = $('#setDlg');
 function renderSettings(){
   $('#sDate').value = state.date; $('#sTime').value = state.time; $('#sPlace').value = state.place;
+  $('#sHostEmail').value = state.hostEmail; $('#sHostPhone').value = state.hostPhone;
   document.querySelectorAll('#lenSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.len === state.codeLen));
   document.querySelectorAll('#nameSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.ns === state.nameSort));
   $('#capOut').value = state.plusCap;
@@ -963,8 +969,8 @@ $('#premBtn').onclick = () => { setDlg.close(); showPaywall(false); };
 $('#settingsBtn').onclick = openSettings;
 $('#detailsLine').onclick = openSettings;
 $('#setDone').onclick = () => setDlg.close();
-['sDate', 'sTime', 'sPlace'].forEach(id => $('#' + id).oninput = e => {
-  state[{ sDate: 'date', sTime: 'time', sPlace: 'place' }[id]] = e.target.value; save(); render();
+['sDate', 'sTime', 'sPlace', 'sHostEmail', 'sHostPhone'].forEach(id => $('#' + id).oninput = e => {
+  state[{ sDate: 'date', sTime: 'time', sPlace: 'place', sHostEmail: 'hostEmail', sHostPhone: 'hostPhone' }[id]] = e.target.value; save(); render();
 });
 document.querySelectorAll('#lenSeg button').forEach(b => b.onclick = () => {
   const len = +b.dataset.len;

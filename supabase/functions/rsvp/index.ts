@@ -34,5 +34,6 @@ Deno.serve(async (req) => {
     const { error } = await db.from("rsvps").update({ answer: body.answer, answered_at: new Date().toISOString() }).eq("token", token);
     return error ? json({ error: "save_failed" }, 500) : json({ answer: body.answer });
   }
-  return json({ name: guest.name, title: ev.title, date: ev.date, time: ev.time, place: ev.place, answer: r.answer });
+  return json({ name: guest.name, title: ev.title, date: ev.date, time: ev.time, place: ev.place, answer: r.answer,
+    hostEmail: ev.hostEmail || "", hostPhone: ev.hostPhone || "" });
 });
