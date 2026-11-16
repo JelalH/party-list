@@ -54,3 +54,34 @@ begin
 end $$;
 drop trigger if exists party_lists_free_limit on public.party_lists;
 create trigger party_lists_free_limit before insert or update on public.party_lists for each row execute function public.enforce_free_limit();
+
+-- RSVPs: a guest answers yes / no through an emailed link (edge function `rsvp`, token = the link key).
+-- Hosts read and create their own rows; only the service role (edge functions) writes answers.
+create table if not exists public.rsvps (
+  token       uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  event_id    text not null,
+  person_id   text not null,
+  answer      text check (answer in ('yes', 'no')),
+  answered_at timestamptz,
+  reminded_at timestamptz,
+  created_at  timestamptz not null default now(),
+  unique (user_id, event_id, person_id)
+);
+alter table public.rsvps enable row level security;
+drop policy if exists "own rsvps: read"   on public.rsvps;
+drop policy if exists "own rsvps: insert" on public.rsvps;
+drop policy if exists "own rsvps: update" on public.rsvps;
+create policy "own rsvps: read"   on public.rsvps for select to authenticated using (user_id = (select auth.uid()));
+create policy "own rsvps: insert" on public.rsvps for insert to authenticated with check (user_id = (select auth.uid()));
+-- upsert needs update; a host could only fake answers on their own list, so that's harmless
+create policy "own rsvps: update" on public.rsvps for update to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+grant select, insert, update on public.rsvps to authenticated;
+revoke all on public.rsvps from anon;
+
+-- Day-before reminder emails for guests who said yes (edge function `rsvp-reminders`), 09:00 UTC daily.
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+select cron.unschedule('rsvp-reminders') where exists (select 1 from cron.job where jobname = 'rsvp-reminders');
+select cron.schedule('rsvp-reminders', '0 9 * * *',
+  $$select net.http_post(url := 'https://xdgrovfkdtvovryyybie.supabase.co/functions/v1/rsvp-reminders', body := '{}'::jsonb)$$);

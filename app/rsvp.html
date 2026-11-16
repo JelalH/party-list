@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RSVP · Party List</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f7f7f8;--surface:#fff;--text:#111113;--muted:#6e6e76;--border:#e7e7ea;--accent:#111113;--accent-text:#fff;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--bg:#0d0d0f;--surface:#16161a;--text:#f3f3f5;--muted:#8e8e97;--border:#26262c;--accent:#f3f3f5;--accent-text:#111113;color-scheme:dark}}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px 16px;box-sizing:border-box;background:var(--bg);color:var(--text);font:16px/1.5 Inter,system-ui,-apple-system,sans-serif}
+.card{width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px 22px;text-align:center}
+h1{margin:0 0 6px;font-size:24px;letter-spacing:-.02em}
+p{margin:0;color:var(--muted)}
+.when{margin-top:10px;color:var(--text);font-weight:600}
+.btns{display:flex;gap:10px;margin-top:22px}
+button{flex:1;height:50px;border-radius:14px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:600 16px Inter,system-ui,sans-serif;cursor:pointer}
+button.yes{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+button:disabled{opacity:.5}
+.done{margin-top:18px;font-weight:600;color:var(--text)}
+</style>
+</head>
+<body>
+<main class="card" id="card"><p>Loading…</p></main>
+<script src="config.js"></script>
+<script>
+const API = (window.PARTY_CONFIG || {}).supabaseUrl + '/functions/v1/rsvp';
+const token = new URLSearchParams(location.search).get('t') || '';
+const card = document.getElementById('card');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const answered = a => a === 'yes' ? 'You’re going. See you there! We’ll email you a reminder the day before.' : 'Thanks for letting them know you can’t make it.';
+
+async function load(){
+  const r = await fetch(API + '?t=' + encodeURIComponent(token)).catch(() => null);
+  const ev = r && r.ok ? await r.json() : null;
+  if (!ev) { card.innerHTML = '<h1>Link not found</h1><p>This RSVP link has expired or was removed. Ask the host for a new one.</p>'; return; }
+  const when = [ev.date && new Date(ev.date + 'T00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }), ev.time, ev.place].filter(Boolean).join(' · ');
+  card.innerHTML = `<p>Hi ${esc(ev.name.split(/\s+/)[0])}, can you make it to</p><h1>${esc(ev.title)}</h1>${when ? `<p class="when">${esc(when)}</p>` : ''}
+    <div class="btns"><button class="yes" data-a="yes">Yes, I’ll be there</button><button data-a="no">Can’t make it</button></div>
+    <p class="done" id="done">${ev.answer ? esc(answered(ev.answer)) : ''}</p>`;
+  card.querySelectorAll('button').forEach(b => b.onclick = () => answer(b.dataset.a));
+}
+async function answer(a){
+  card.querySelectorAll('button').forEach(b => b.disabled = true);
+  const r = await fetch(API, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ t: token, answer: a }) }).catch(() => null);
+  document.getElementById('done').textContent = r && r.ok ? answered(a) : 'That didn’t go through, please try again.';
+  card.querySelectorAll('button').forEach(b => b.disabled = false);
+}
+load();
+</script>
+</body>
+</html>

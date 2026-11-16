@@ -164,6 +164,21 @@ dialog::backdrop{background:rgba(0,0,0,.4);backdrop-filter:blur(3px)}
 .pay-cta{width:100%;height:48px;justify-content:center;font-size:16px}
 .pay-later{text-align:center;color:var(--muted)}
 .prem-title{font-weight:600;font-size:14px}
+.pay-badge svg{width:24px;height:24px}
+#addBtn .lock-ic,#addBtn.locked .plus-ic{display:none}
+#addBtn.locked .lock-ic{display:inline}
+/* gold Premium card in Settings */
+#premSec{padding:14px;border-radius:14px;border:0;background:linear-gradient(135deg,#fff4cf,#f1cf6e);color:#3a2900}
+:root[data-theme="dark"] #premSec{background:linear-gradient(135deg,#3b2c06,#7a5a12);color:#ffe7a3}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) #premSec{background:linear-gradient(135deg,#3b2c06,#7a5a12);color:#ffe7a3}}
+#premSec .hint{color:inherit;opacity:.75}
+#premBtn{border:0;color:#2b1d00;font-weight:600;background:linear-gradient(100deg,#b8860b 20%,#fff1b0 50%,#b8860b 80%) 0 0/250% 100%;animation:shine 2.6s linear infinite;box-shadow:0 2px 10px rgba(184,134,11,.45)}
+@keyframes shine{to{background-position:-250% 0}}
+@media (prefers-reduced-motion: reduce){#premBtn{animation:none}}
+/* RSVP answers on the list */
+.rsvp{flex:none;font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--chip);color:var(--muted)}
+.rsvp.yes{background:#dff5e3;color:#17702b}
+.rsvp.no{background:#fde3e3;color:#a12a2a}
 .native-only{display:none}
 .native .native-only{display:block}
 .native body{padding-top:env(safe-area-inset-top)}
@@ -241,7 +256,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
       <button data-sort="za">Z → A</button>
     </div>
     <button class="btn primary" id="addBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add guest
+      <svg class="plus-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><svg class="lock-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Add guest
     </button>
     <details class="menu" id="menu">
       <summary class="btn">
@@ -274,6 +289,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
         <input id="fCode" inputmode="numeric" maxlength="8" aria-label="Entry code">
         <button type="button" class="btn sm" id="textBtn">Text code</button>
         <button type="button" class="btn sm" id="mailBtn">Email code</button>
+        <button type="button" class="btn sm" id="rsvpBtn">Ask to RSVP</button>
       </div>
       <div class="err" id="codeErr" hidden></div>
     </div>
@@ -307,8 +323,8 @@ body{padding-bottom:env(safe-area-inset-bottom)}
 <!-- premium -->
 <dialog id="payDlg">
   <div class="dlg pay">
-    <div class="pay-badge">✦</div>
-    <h2>Party List Premium</h2>
+    <div class="pay-badge" id="payBadge">✦</div>
+    <h2 id="payTitle">Party List Premium</h2>
     <p class="pay-lead" id="payLead"></p>
     <ul class="pay-list">
       <li>Unlimited guests across every event</li>
@@ -319,6 +335,16 @@ body{padding-bottom:env(safe-area-inset-bottom)}
     <button class="link-btn pay-later" id="payClose">Not now</button>
     <button class="link-btn pay-later native-only" id="payRestore">Restore purchase</button>
   </div>
+</dialog>
+
+<!-- delete account: typing DELETE makes it a deliberate act -->
+<dialog id="delDlg">
+  <form class="dlg" id="delForm">
+    <h2>Delete account?</h2>
+    <p class="hint" id="delNote"></p>
+    <div class="field"><label for="delInput">Type DELETE to confirm</label><input id="delInput" autocapitalize="characters" autocomplete="off" spellcheck="false"></div>
+    <div class="dlg-actions"><div class="r"><button type="button" class="btn" id="delCancel">Cancel</button><button type="submit" class="btn danger" id="delConfirm" disabled>Delete account</button></div></div>
+  </form>
 </dialog>
 
 <!-- settings -->
@@ -481,6 +507,14 @@ async function pull(){
     dirty = true; push();
   }
 }
+// guests' answers to "Ask to RSVP" links, keyed "eventId:personId"
+let rsvp = {};
+const rsvpTag = a => a ? `<span class="rsvp ${a}">${{ yes: 'Going', no: 'Can’t go', asked: 'Asked' }[a]}</span>` : '';
+async function pullRsvps(){
+  if (!sb || !user) return;
+  const { data } = await sb.from('rsvps').select('event_id,person_id,answer');
+  if (data) { rsvp = Object.fromEntries(data.map(r => [r.event_id + ':' + r.person_id, r.answer || 'asked'])); render(); }
+}
 function setUser(u){
   const changed = (u?.id || null) !== (user?.id || null);
   user = u;
@@ -491,7 +525,7 @@ function setUser(u){
     if (doc.owner && doc.owner !== u.id) useDoc(normalizeDoc(null));   // someone else's list was cached here
     doc.owner = u.id; writeLocal(); render();
     if (/[?&](code|session_id)=/.test(location.search)) history.replaceState(null, '', location.pathname);
-    pull(); refreshPremium();
+    pull(); refreshPremium(); pullRsvps();
   }
 }
 async function startAuth(){
@@ -509,13 +543,22 @@ async function startAuth(){
     premium = false; useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
   };
   // delete the account and everything saved with it (App Store + Play require this in the app)
-  $('#deleteAcctBtn').onclick = async () => {
-    const note = premium && NATIVE ? '\n\nPremium stays with your Apple or Google account: if you sign up again, tap “Restore purchase”.' : '';
-    if (!confirm('Delete your account, and all your events and guests? This can’t be undone.' + note)) return;
-    $('#deleteAcctBtn').disabled = true;
+  const delDlg = $('#delDlg');
+  $('#deleteAcctBtn').onclick = () => {
+    $('#delNote').textContent = 'This deletes your account and all your events and guests. It can’t be undone.'
+      + (premium && NATIVE ? ' Premium stays with your Apple or Google account: if you sign up again, tap “Restore purchase”.' : '');
+    $('#delInput').value = ''; $('#delConfirm').disabled = true;
+    delDlg.showModal();
+  };
+  $('#delInput').oninput = e => { $('#delConfirm').disabled = e.target.value.trim() !== 'DELETE'; };
+  $('#delCancel').onclick = () => delDlg.close();
+  $('#delForm').onsubmit = async e => {
+    e.preventDefault();
+    if ($('#delInput').value.trim() !== 'DELETE') return;
+    $('#delConfirm').disabled = true;
     const { data, error } = await sb.functions.invoke('delete-account', { body: {} });
-    $('#deleteAcctBtn').disabled = false;
-    if (error || !data?.deleted) return toast('Couldn’t delete your account, please try again');
+    if (error || !data?.deleted) { $('#delConfirm').disabled = false; return toast('Couldn’t delete your account, please try again'); }
+    delDlg.close();
     clearTimeout(pushTimer); dirty = false;
     await sb.auth.signOut({ scope: 'local' });
     toNative({ type: 'signout' });
@@ -526,7 +569,7 @@ async function startAuth(){
   const { data: { session } } = await sb.auth.getSession();
   setUser(session?.user || null);
   sb.auth.onAuthStateChange((_e, s) => setUser(s?.user || null));
-  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' ? pull() : push());
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' ? (pull(), pullRsvps()) : push());
   addEventListener('online', push);
 }
 
@@ -603,6 +646,7 @@ function render(){
   $('#detailsLine').textContent = d || 'Add date, time & place';
   $('#detailsLine').classList.toggle('is-empty', !d);
   $('#stats').textContent = countText();
+  $('#addBtn').classList.toggle('locked', atFreeLimit());
   document.querySelectorAll('#sortSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.sort === state.sort));
 
   const q = $('#q').value.trim().toLowerCase();
@@ -621,6 +665,7 @@ function render(){
       <button class="handle" aria-label="Drag to reorder" tabindex="-1"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
       <div class="idx">${all.indexOf(p) + 1}</div>
       <div class="main"><div class="name">${esc(p.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</div>
+      ${rsvpTag(rsvp[state.id + ':' + p.id])}
       <button class="code" data-copy="${p.code}" title="Copy code">${p.code}</button>
     </li>`;
   }).join('');
@@ -746,6 +791,8 @@ async function refreshPremium(){
 }
 const payDlg = $('#payDlg');
 function showPaywall(hitLimit){
+  $('#payBadge').innerHTML = hitLimit ? $('#addBtn .lock-ic').outerHTML.replace(' class="lock-ic"', '') : '✦';
+  $('#payTitle').textContent = hitLimit ? 'Guest limit reached' : 'Party List Premium';
   $('#payLead').textContent = hitLimit
     ? `You’ve reached ${FREE_LIMIT} guests on the free plan. Unlock Premium to keep adding people.`
     : 'One small payment, yours for life.';
@@ -821,6 +868,7 @@ function openEditor(id, plusOf = null){
 function updateSendBtns(){
   $('#textBtn').hidden = !$('#fPhone').value.trim();
   $('#mailBtn').hidden = !$('#fEmail').value.trim();
+  $('#rsvpBtn').hidden = !$('#fEmail').value.trim() || !user;   // answers are stored online, so it needs an account
 }
 $('#fPhone').oninput = updateSendBtns;
 $('#fEmail').oninput = updateSendBtns;
@@ -885,6 +933,18 @@ function inviteMessage(){
 }
 $('#textBtn').onclick = () => { location.href = `sms:${$('#fPhone').value.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(inviteMessage())}`; };
 $('#mailBtn').onclick = () => { location.href = `mailto:${encodeURIComponent($('#fEmail').value.trim())}?subject=${encodeURIComponent('Your code for ' + state.title)}&body=${encodeURIComponent(inviteMessage())}`; };
+// email the guest a link where they answer yes / no; a yes gets a reminder email the day before
+$('#rsvpBtn').onclick = async () => {
+  const p = commit(); if (!p) return;
+  const { data, error } = await sb.from('rsvps')
+    .upsert({ event_id: state.id, person_id: p.id }, { onConflict: 'user_id,event_id,person_id' }).select('token').single();
+  if (error) return toast('Couldn’t make the RSVP link, try again');
+  dirty = true; push();   // the RSVP page reads the event from the saved list
+  rsvp[state.id + ':' + p.id] ??= 'asked'; render();
+  const link = new URL('rsvp.html?t=' + data.token, location.href).href;
+  const body = `${inviteMessage()}\n\nCan you make it? Tap to let me know: ${link}`;
+  location.href = `mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent('Can you make it to ' + state.title + '?')}&body=${encodeURIComponent(body)}`;
+};
 
 /* ---------- settings ---------- */
 const setDlg = $('#setDlg');
