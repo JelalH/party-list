@@ -938,17 +938,16 @@ function inviteMessage(){
 }
 $('#textBtn').onclick = () => { location.href = `sms:${$('#fPhone').value.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(inviteMessage())}`; };
 $('#mailBtn').onclick = () => { location.href = `mailto:${encodeURIComponent($('#fEmail').value.trim())}?subject=${encodeURIComponent('Your code for ' + state.title)}&body=${encodeURIComponent(inviteMessage())}`; };
-// email the guest a link where they answer yes / no; a yes gets a reminder email the day before
+// Party List emails the guest a link where they answer yes / no; a yes gets a reminder the day before
 $('#rsvpBtn').onclick = async () => {
   const p = commit(); if (!p) return;
-  const { data, error } = await sb.from('rsvps')
-    .upsert({ event_id: state.id, person_id: p.id }, { onConflict: 'user_id,event_id,person_id' }).select('token').single();
-  if (error) return toast('Couldn’t make the RSVP link, try again');
-  dirty = true; push();   // the RSVP page reads the event from the saved list
+  const btn = $('#rsvpBtn'); btn.disabled = true; btn.textContent = 'Sending…';
+  dirty = true; await push();   // the invite is built from the saved list
+  const { data, error } = await sb.functions.invoke('rsvp-invite', { body: { event_id: state.id, person_id: p.id } });
+  btn.disabled = false; btn.textContent = 'Ask to RSVP';
+  if (error || !data?.sent) return toast(dirty ? 'Couldn’t save the list, try again' : 'Couldn’t send the invite, try again');
   rsvp[state.id + ':' + p.id] ??= 'asked'; render();
-  const link = new URL('rsvp.html?t=' + data.token, location.href).href;
-  const body = `${inviteMessage()}\n\nCan you make it? Tap to let me know: ${link}`;
-  location.href = `mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent('Can you make it to ' + state.title + '?')}&body=${encodeURIComponent(body)}`;
+  toast(`RSVP sent to ${data.to}`);
 };
 
 /* ---------- settings ---------- */

@@ -85,3 +85,4 @@ create extension if not exists pg_net;
 select cron.unschedule('rsvp-reminders') where exists (select 1 from cron.job where jobname = 'rsvp-reminders');
 select cron.schedule('rsvp-reminders', '0 9 * * *',
   $$select net.http_post(url := 'https://xdgrovfkdtvovryyybie.supabase.co/functions/v1/rsvp-reminders', body := '{}'::jsonb)$$);
+alter table public.rsvps add column if not exists invited_at timestamptz;   -- when Party List last emailed the invite (daily cap)
