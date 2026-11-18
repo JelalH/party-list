@@ -1,9 +1,9 @@
-{
+﻿{
   "expo": {
     "name": "Party List",
     "slug": "party-list",
     "scheme": "partylist",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -20,7 +20,8 @@
       "package": "io.github.jelalh.partylist",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#111113"
+        "backgroundImage": "./assets/adaptive-bg.png",
+        "backgroundColor": "#a43fc8"
       },
       "permissions": []
     },
