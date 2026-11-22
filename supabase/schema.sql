@@ -165,3 +165,10 @@ create trigger shared_events_free_limit before insert or update on public.shared
 -- co-hosts see the RSVP answers for a shared event, whoever sent the invite
 drop policy if exists "shared rsvps: read" on public.rsvps;
 create policy "shared rsvps: read" on public.rsvps for select to authenticated using (public.can_edit_event(event_id));
+
+-- the owner check is done on the row itself: inside an INSERT ... RETURNING the new row isn't visible to can_edit_event() yet
+drop policy if exists "shared: read" on public.shared_events;
+drop policy if exists "shared: edit" on public.shared_events;
+create policy "shared: read" on public.shared_events for select to authenticated using (owner = (select auth.uid()) or public.can_edit_event(id));
+create policy "shared: edit" on public.shared_events for update to authenticated
+  using (owner = (select auth.uid()) or public.can_edit_event(id)) with check (owner = (select auth.uid()) or public.can_edit_event(id));
