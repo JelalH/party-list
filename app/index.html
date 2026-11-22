@@ -179,6 +179,14 @@ dialog::backdrop{background:rgba(0,0,0,.4);backdrop-filter:blur(3px)}
 .rsvp{flex:none;font-size:12px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--chip);color:var(--muted)}
 .rsvp.yes{background:#dff5e3;color:#17702b}
 .rsvp.no{background:#fde3e3;color:#a12a2a}
+/* door check-in */
+.chk{flex:none;width:34px;height:34px;border-radius:50%;border:2px solid var(--border);background:transparent;color:transparent;display:grid;place-items:center;cursor:pointer}
+.chk svg{width:16px;height:16px}
+.chk.on{background:#1f9d4a;border-color:#1f9d4a;color:#fff}
+.row.arrived .name{color:var(--muted)}
+.filter{height:42px;border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:0 10px;font-weight:500}
+.menu-pop select{margin:4px 12px 6px;width:calc(100% - 24px);height:34px;border-radius:9px;border:1px solid var(--border);background:var(--bg)}
+#customFields:empty{display:none}
 .native-only{display:none}
 .native .native-only{display:block}
 .native body{padding-top:env(safe-area-inset-top)}
@@ -255,6 +263,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
       <button data-sort="az">A → Z</button>
       <button data-sort="za">Z → A</button>
     </div>
+    <select class="filter" id="filterSel" aria-label="Show"></select>
     <button class="btn primary" id="addBtn">
       <svg class="plus-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg><svg class="lock-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Add guest
     </button>
@@ -266,7 +275,10 @@ body{padding-bottom:env(safe-area-inset-bottom)}
         <button id="pdfBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>PDF</button>
         <button id="docBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>Word document</button>
         <hr>
+        <label for="repType">Who to include</label>
+        <select id="repType"></select>
         <label><input type="checkbox" id="incCodes" checked> Include codes</label>
+        <label><input type="checkbox" id="incExtra" checked> Include table, job, RSVP &amp; arrival</label>
         <label><input type="checkbox" id="incContact" checked> Include contact info &amp; notes</label>
       </div>
     </details>
@@ -287,6 +299,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
       <label for="fCode">Entry code</label>
       <div class="code-row">
         <input id="fCode" inputmode="numeric" maxlength="8" aria-label="Entry code">
+        <button type="button" class="btn sm" id="callBtn">Call</button>
         <button type="button" class="btn sm" id="textBtn">Text code</button>
         <button type="button" class="btn sm" id="mailBtn">Email code</button>
         <button type="button" class="btn sm" id="rsvpBtn">Ask to RSVP</button>
@@ -298,6 +311,11 @@ body{padding-bottom:env(safe-area-inset-bottom)}
       <div class="field"><label for="fEmail">Email</label><input id="fEmail" type="email" inputmode="email"></div>
       <div class="field"><label for="fPhone">Phone number</label><input id="fPhone" type="tel" inputmode="tel"></div>
     </div>
+    <div class="grid2">
+      <div class="field"><label for="fTable">Table</label><input id="fTable"></div>
+      <div class="field"><label for="fJob">Job title</label><input id="fJob"></div>
+    </div>
+    <div class="grid2" id="customFields"></div>
     <div class="field"><label for="fNotes">Notes</label><textarea id="fNotes" placeholder="Allergies, arriving late, bringing drinks…"></textarea></div>
     <button type="button" class="link-btn" id="addPlusBtn"></button>
     <div class="dlg-actions">
@@ -378,6 +396,10 @@ body{padding-bottom:env(safe-area-inset-bottom)}
       <div class="set-row"><span>Max +1s per guest</span>
         <div class="stepper"><button type="button" id="capDown" aria-label="Fewer">−</button><output id="capOut"></output><button type="button" id="capUp" aria-label="More">+</button></div>
       </div>
+      <div class="field"><label for="sFields">Extra guest fields (comma separated, e.g. Dietary, Company)</label><input id="sFields" placeholder="Dietary, Company"></div>
+      <div class="set-row"><span>Copy guests from</span>
+        <div style="display:flex;gap:6px;min-width:0"><select class="filter" id="copyFrom" style="height:34px;max-width:150px"></select><button class="btn sm" id="copyBtn">Copy</button></div>
+      </div>
       <div class="set-row"><span>Sort A → Z by</span>
         <div class="seg sm" id="nameSeg"><button data-ns="first">First name</button><button data-ns="last">Last name</button></div>
       </div>
@@ -411,7 +433,7 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 /* ---------- storage ---------- */
-const DEFAULTS = { title: 'My Party', sort: 'custom', nameSort: 'first', codeLen: 4, plusCap: 2, date: '', time: '', place: '', hostEmail: '', hostPhone: '', people: [] };
+const DEFAULTS = { title: 'My Party', sort: 'custom', nameSort: 'first', codeLen: 4, plusCap: 2, date: '', time: '', place: '', hostEmail: '', hostPhone: '', fields: [], people: [] };
 function load(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
 function writeLocal(){ try { localStorage.setItem(KEY, JSON.stringify(doc)); } catch {} }
 function save(){ doc.savedAt = Date.now(); writeLocal(); schedulePush(); }
@@ -634,13 +656,31 @@ function countText(){
   const plus = state.people.filter(p => p.plusOf).length;
   const n = state.people.length;
   if (!n) return 'No one on the list yet';
-  return `${n} ${n === 1 ? 'person' : 'people'}` + (plus ? ` · ${n - plus} invited + ${plus} plus-one${plus === 1 ? '' : 's'}` : '');
+  const arrived = state.people.filter(p => p.arrived).length;
+  return `${n} ${n === 1 ? 'person' : 'people'}` + (plus ? ` · ${n - plus} invited + ${plus} plus-one${plus === 1 ? '' : 's'}` : '')
+    + (arrived ? ` · ${arrived} arrived, ${n - arrived} expected` : '');
 }
 function relationText(p){
   if (p.plusOf) { const h = byId(p.plusOf); return h ? `+1 of ${h.name}` : ''; }
   const ps = plusesOf(p.id);
   return ps.length ? `Bringing ${ps.map(x => x.name).join(', ')}` : '';
 }
+
+// who to show: used by the list filter and by the PDF / Word reports
+const answer = p => rsvp[state.id + ':' + p.id];
+const GROUPS = [
+  ['all', 'All guests', () => true],
+  ['yes', 'Going', p => answer(p) === 'yes'],
+  ['no', 'Can’t go', p => answer(p) === 'no'],
+  ['none', 'No reply', p => answer(p) !== 'yes' && answer(p) !== 'no'],
+  ['arrived', 'Arrived', p => !!p.arrived],
+  ['waiting', 'Not arrived', p => !p.arrived],
+  ['plus', '+1s', p => !!p.plusOf],
+];
+const inGroup = (key, p) => (GROUPS.find(g => g[0] === key) || GROUPS[0])[2](p);
+let filterKey = 'all';
+const CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></svg>';
+const options = () => GROUPS.map(g => `<option value="${g[0]}">${g[1]}</option>`).join('');
 
 /* ---------- list ---------- */
 let sortable;
@@ -657,27 +697,28 @@ function render(){
   const q = $('#q').value.trim().toLowerCase();
   const digits = q.replace(/\s/g, '');
   const all = ordered();
-  const shown = all.filter(p => !q
-    || [p.name, p.email, p.phone, p.notes].join(' ').toLowerCase().includes(q)
-    || (/^\d+$/.test(digits) && p.code.includes(digits)));
+  const shown = all.filter(p => inGroup(filterKey, p) && (!q
+    || [p.name, p.email, p.phone, p.notes, p.table, p.job, ...Object.values(p.extra || {})].join(' ').toLowerCase().includes(q)
+    || (/^\d+$/.test(digits) && p.code.includes(digits))));
 
-  const canDrag = state.sort === 'custom' && !q;
+  const canDrag = state.sort === 'custom' && !q && filterKey === 'all';
   const list = $('#list');
   list.classList.toggle('no-drag', !canDrag);
   list.innerHTML = shown.map(p => {
-    const meta = [p.email, p.phone].filter(Boolean).join(' · ');
-    return `<li class="row" data-id="${p.id}">
+    const meta = [p.table && 'Table ' + p.table, p.email, p.phone].filter(Boolean).join(' · ');
+    return `<li class="row${p.arrived ? ' arrived' : ''}" data-id="${p.id}">
       <button class="handle" aria-label="Drag to reorder" tabindex="-1"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg></button>
       <div class="idx">${all.indexOf(p) + 1}</div>
       <div class="main"><div class="name">${esc(p.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</div>
       ${rsvpTag(rsvp[state.id + ':' + p.id])}
       <button class="code" data-copy="${p.code}" title="Copy code">${p.code}</button>
+      <button class="chk${p.arrived ? ' on' : ''}" data-arrive="${p.id}" aria-pressed="${!!p.arrived}" aria-label="${p.arrived ? 'Arrived, tap to undo' : 'Mark as arrived'}">${CHECK}</button>
     </li>`;
   }).join('');
 
   const empty = $('#empty');
   if (!state.people.length) { empty.hidden = false; empty.innerHTML = '<strong>No guests yet</strong>Tap “Add guest” to start your list.'; }
-  else if (!shown.length) { empty.hidden = false; empty.innerHTML = '<strong>No matches</strong>Try a different search.'; }
+  else if (!shown.length) { empty.hidden = false; empty.innerHTML = '<strong>No matches</strong>Try a different search or show “All guests”.'; }
   else empty.hidden = true;
 
   if (window.Sortable) {
@@ -694,6 +735,13 @@ function render(){
 }
 
 $('#list').addEventListener('click', e => {
+  const arrive = e.target.closest('[data-arrive]');
+  if (arrive) {
+    const p = byId(arrive.dataset.arrive);
+    p.arrived = p.arrived ? 0 : Date.now();
+    save(); render(); toast(p.arrived ? `${p.name} checked in` : `${p.name} unchecked`);
+    return;
+  }
   const copy = e.target.closest('[data-copy]');
   if (copy) { e.stopPropagation(); navigator.clipboard?.writeText(copy.dataset.copy).then(() => toast('Code copied'), () => {}); return; }
   if (e.target.closest('.handle')) return;
@@ -702,6 +750,8 @@ $('#list').addEventListener('click', e => {
 });
 document.querySelectorAll('#sortSeg button').forEach(b => b.onclick = () => { state.sort = b.dataset.sort; save(); render(); });
 $('#q').oninput = render;
+$('#filterSel').innerHTML = options();
+$('#filterSel').onchange = e => { filterKey = e.target.value; render(); };
 // size the name box to its text so the events arrow sits right after the name
 function fitTitle(){
   const m = $('#titleMeasure'); m.textContent = $('#title').value || ' ';
@@ -847,6 +897,10 @@ function openEditor(id, plusOf = null){
   $('#fEmail').value = p?.email || '';
   $('#fPhone').value = p?.phone || '';
   $('#fNotes').value = p?.notes || '';
+  $('#fTable').value = p?.table || '';
+  $('#fJob').value = p?.job || '';
+  $('#customFields').innerHTML = (state.fields || []).map((f, i) =>
+    `<div class="field"><label for="fx${i}">${esc(f)}</label><input id="fx${i}" data-field="${esc(f)}" value="${esc(p?.extra?.[f] || '')}"></div>`).join('');
   $('#delBtn').style.visibility = p ? 'visible' : 'hidden';
 
   // who they came with / who they're bringing
@@ -871,7 +925,7 @@ function openEditor(id, plusOf = null){
   if (!p) $('#fName').focus();
 }
 function updateSendBtns(){
-  $('#textBtn').hidden = !$('#fPhone').value.trim();
+  $('#textBtn').hidden = $('#callBtn').hidden = !$('#fPhone').value.trim();
   $('#mailBtn').hidden = !$('#fEmail').value.trim();
   $('#rsvpBtn').hidden = !$('#fEmail').value.trim() || !user;   // answers are stored online, so it needs an account
 }
@@ -890,7 +944,10 @@ function commit(){
     $('#codeErr').textContent = clash ? `${clash.name} already has this code` : 'Codes need at least 3 digits';
     $('#codeErr').hidden = false; $('#fCode').focus(); return null;
   }
-  const data = { name, code, email: $('#fEmail').value.trim(), phone: $('#fPhone').value.trim(), notes: $('#fNotes').value.trim() };
+  const extra = {};
+  document.querySelectorAll('#customFields [data-field]').forEach(i => { if (i.value.trim()) extra[i.dataset.field] = i.value.trim(); });
+  const data = { name, code, email: $('#fEmail').value.trim(), phone: $('#fPhone').value.trim(), notes: $('#fNotes').value.trim(),
+    table: $('#fTable').value.trim(), job: $('#fJob').value.trim(), extra };
   let p;
   if (editId) { p = byId(editId); Object.assign(p, data); }
   else {
@@ -936,6 +993,7 @@ function inviteMessage(){
   const when = whenText();
   return `Hi ${first}! You're on the guest list for ${state.title}${when ? ' (' + when + ')' : ''}${state.place ? ' at ' + state.place : ''}. Your entry code is ${$('#fCode').value} – show it at the door.`;
 }
+$('#callBtn').onclick = () => { location.href = `tel:${$('#fPhone').value.replace(/[^\d+]/g, '')}`; };
 $('#textBtn').onclick = () => { location.href = `sms:${$('#fPhone').value.replace(/[^\d+]/g, '')}?&body=${encodeURIComponent(inviteMessage())}`; };
 $('#mailBtn').onclick = () => { location.href = `mailto:${encodeURIComponent($('#fEmail').value.trim())}?subject=${encodeURIComponent('Your code for ' + state.title)}&body=${encodeURIComponent(inviteMessage())}`; };
 // Party List emails the guest a link where they answer yes / no; a yes gets a reminder the day before
@@ -955,6 +1013,10 @@ const setDlg = $('#setDlg');
 function renderSettings(){
   $('#sDate').value = state.date; $('#sTime').value = state.time; $('#sPlace').value = state.place;
   $('#sHostEmail').value = state.hostEmail; $('#sHostPhone').value = state.hostPhone;
+  $('#sFields').value = (state.fields || []).join(', ');
+  const others = doc.events.filter(e => e.id !== state.id && e.people.length);
+  $('#copyFrom').innerHTML = others.map(e => `<option value="${e.id}">${esc(e.title || 'Untitled event')} (${e.people.length})</option>`).join('');
+  $('#copyFrom').closest('.set-row').hidden = !others.length;
   document.querySelectorAll('#lenSeg button').forEach(b => b.setAttribute('aria-pressed', +b.dataset.len === state.codeLen));
   document.querySelectorAll('#nameSeg button').forEach(b => b.setAttribute('aria-pressed', b.dataset.ns === state.nameSort));
   $('#capOut').value = state.plusCap;
@@ -983,6 +1045,25 @@ document.querySelectorAll('#lenSeg button').forEach(b => b.onclick = () => {
   }
   save(); render(); renderSettings();
 });
+$('#sFields').onchange = e => {
+  state.fields = [...new Set(e.target.value.split(',').map(s => s.trim()).filter(Boolean))].slice(0, 8);
+  save(); renderSettings();
+};
+// bring guests over from another event (new codes, no check-ins), skipping names already on this list
+$('#copyBtn').onclick = () => {
+  const src = doc.events.find(e => e.id === $('#copyFrom').value); if (!src) return;
+  const have = new Set(state.people.map(p => p.name.trim().toLowerCase()));
+  const pick = src.people.filter(p => !have.has(p.name.trim().toLowerCase()));
+  if (!pick.length) return toast('Everyone from that event is already here');
+  if (!premium && totalPeople() + pick.length > FREE_LIMIT) { setDlg.close(); showPaywall(true); return; }
+  const ids = new Map(pick.map(p => [p.id, uid()]));
+  const used = new Set(state.people.map(p => p.code));
+  pick.forEach(p => {
+    const code = genCode(used); used.add(code);
+    state.people.push({ ...p, id: ids.get(p.id), plusOf: p.plusOf ? ids.get(p.plusOf) ?? null : null, code, arrived: 0 });
+  });
+  save(); render(); renderSettings(); toast(`Copied ${pick.length} ${pick.length === 1 ? 'guest' : 'guests'}`);
+};
 document.querySelectorAll('#nameSeg button').forEach(b => b.onclick = () => { state.nameSort = b.dataset.ns; save(); render(); renderSettings(); });
 $('#capDown').onclick = () => { state.plusCap = Math.max(0, state.plusCap - 1); save(); renderSettings(); };
 $('#capUp').onclick = () => { state.plusCap = Math.min(10, state.plusCap + 1); save(); renderSettings(); };
@@ -998,9 +1079,21 @@ function columns(){
   if (codes) cols.push(['Code', p => p.code]);
   if (contact) cols.push(['Email', p => p.email], ['Phone', p => p.phone]);
   cols.push(['+1', relationText]);
+  if ($('#incExtra').checked) {
+    const people = reportPeople(), any = f => people.some(f);
+    if (any(p => p.table)) cols.push(['Table', p => p.table]);
+    if (any(p => p.job)) cols.push(['Job title', p => p.job]);
+    (state.fields || []).forEach(f => { if (any(p => p.extra?.[f])) cols.push([f, p => p.extra?.[f]]); });
+    if (any(p => answer(p))) cols.push(['RSVP', p => ({ yes: 'Going', no: 'Can’t go', asked: 'Asked' }[answer(p)] || '')]);
+    if (any(p => p.arrived)) cols.push(['Arrived', p => p.arrived ? new Date(p.arrived).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '']);
+  }
   if (contact) cols.push(['Notes', p => p.notes]);
   return cols;
 }
+const reportKey = () => $('#repType').value || 'all';
+const reportPeople = () => ordered().filter(p => inGroup(reportKey(), p));
+const reportName = () => reportKey() === 'all' ? 'guest-list' : GROUPS.find(g => g[0] === reportKey())[1].toLowerCase().replace(/[^a-z0-9]+/g, '-');
+$('#repType').innerHTML = options();
 async function deliver(blob, filename){
   if (NATIVE) {   // phone app: hand the file to the native share sheet
     const base64 = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
@@ -1019,7 +1112,7 @@ async function deliver(blob, filename){
 }
 $('#pdfBtn').onclick = () => {
   menu.open = false;
-  if (!state.people.length) return toast('Add some guests first');
+  if (!reportPeople().length) return toast('No guests in that group');
   if (!window.jspdf) return toast('PDF tool didn’t load — check your internet');
   const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const cols = columns();
@@ -1034,25 +1127,25 @@ $('#pdfBtn').onclick = () => {
   doc.autoTable({
     startY: y + 16, margin: { left: 40, right: 40 },
     head: [cols.map(c => c[0])],
-    body: ordered().map((p, i) => cols.map(c => c[1](p, i) || '')),
+    body: reportPeople().map((p, i) => cols.map(c => c[1](p, i) || '')),
     styles: { fontSize: 9, cellPadding: 6, valign: 'top', lineColor: [230, 230, 233], lineWidth: 0.5, textColor: 20 },
     headStyles: { fillColor: [17, 17, 19], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [248, 248, 249] },
     columnStyles: colStyles,
   });
-  deliver(doc.output('blob'), slug() + '-guest-list.pdf');
+  deliver(doc.output('blob'), slug() + '-' + reportName() + '.pdf');
 };
 $('#docBtn').onclick = () => {
   menu.open = false;
-  if (!state.people.length) return toast('Add some guests first');
+  if (!reportPeople().length) return toast('No guests in that group');
   const cols = columns();
-  const rows = ordered().map((p, i) => '<tr>' + cols.map(c => `<td>${esc(c[1](p, i) || '')}</td>`).join('') + '</tr>').join('');
+  const rows = reportPeople().map((p, i) => '<tr>' + cols.map(c => `<td>${esc(c[1](p, i) || '')}</td>`).join('') + '</tr>').join('');
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>${esc(state.title)}</title>
 <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
 <style>@page{size:A4 landscape;margin:2cm}body{font-family:Calibri,Arial,sans-serif;font-size:10pt}h1{font-size:20pt;margin:0}.d{font-size:11pt;margin:3pt 0 0}.s{color:#777;font-size:9pt;margin:2pt 0 12pt}table{border-collapse:collapse;width:100%}th{background:#111113;color:#fff;text-align:left;padding:5pt}td{border:1px solid #ddd;padding:5pt;vertical-align:top}</style></head>
 <body><h1>${esc(state.title)}</h1>${detailsText() ? `<p class="d">${esc(detailsText())}</p>` : ''}<p class="s">${esc(countText() + ' · ' + stamp())}</p>
 <table><thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></body></html>`;
-  deliver(new Blob(['﻿', html], { type: 'application/msword' }), slug() + '-guest-list.doc');
+  deliver(new Blob(['﻿', html], { type: 'application/msword' }), slug() + '-' + reportName() + '.doc');
 };
 
 /* ---------- backup ---------- */
