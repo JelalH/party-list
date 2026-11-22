@@ -392,6 +392,16 @@ body{padding-bottom:env(safe-area-inset-bottom)}
         <button class="btn sm primary" id="premBtn"></button>
       </div>
     </div>
+    <div class="set-sec" id="shareSec" hidden>
+      <div class="set-row">
+        <div><div class="prem-title">Co-hosts</div><div class="hint" id="shareHint"></div></div>
+        <button class="btn sm" id="shareBtn"></button>
+      </div>
+      <div class="field" id="shareLinkRow" hidden>
+        <label for="shareLink">Invite link: send it to your co-host</label>
+        <div style="display:flex;gap:6px"><input id="shareLink" readonly><button class="btn sm" id="copyLinkBtn" type="button">Copy</button></div>
+      </div>
+    </div>
     <div class="set-sec">
       <div class="lbl">Event details (shown on the shared list)</div>
       <div class="grid2">
@@ -453,7 +463,7 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const DEFAULTS = { title: 'My Party', sort: 'custom', nameSort: 'first', codeLen: 4, plusCap: 2, date: '', time: '', place: '', hostEmail: '', hostPhone: '', fields: [], people: [] };
 function load(){ try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
 function writeLocal(){ try { localStorage.setItem(KEY, JSON.stringify(doc)); } catch {} }
-function save(){ doc.savedAt = Date.now(); writeLocal(); schedulePush(); }
+function save(){ doc.savedAt = Date.now(); doc.events.forEach(e => { if (e.shared) stampChanges(e); }); writeLocal(); schedulePush(); }
 // one event (its own guests, details and preferences)
 function normalize(s){
   s = { ...DEFAULTS, ...(s || {}) };
@@ -489,7 +499,8 @@ function openEvent(id){
   doc.currentId = id; state = ev; $('#q').value = ''; save(); render();
 }
 function useDoc(d){ doc = d; state = doc.events.find(e => e.id === doc.currentId); }
-const totalPeople = () => doc.events.reduce((n, e) => n + e.people.length, 0);
+// events you co-host for someone else don't count towards your free plan
+const totalPeople = () => doc.events.filter(e => mine(e)).reduce((n, e) => n + e.people.length, 0);
 
 /* ---------- account + online saving (Supabase) ---------- */
 const CFG = window.PARTY_CONFIG || {};
@@ -527,13 +538,17 @@ function schedulePush(){
   dirty = true; clearTimeout(pushTimer); pushTimer = setTimeout(push, 700);
 }
 async function push(){
-  if (!sb || !user || !dirty) return;
-  dirty = false;
-  const { error } = await sb.from('party_lists').upsert({ user_id: user.id, data: doc, updated_at: new Date().toISOString() });
-  if (error) {
-    if (/free_limit/.test(error.message)) { refreshPremium().then(() => { if (!premium) showPaywall(true); }); return; }
-    dirty = true; if (navigator.onLine) toast('Couldn’t save online, will try again');
+  if (!sb || !user) return;
+  if (dirty) {
+    dirty = false;
+    const data = { ...doc, events: doc.events.filter(e => mine(e)) };   // co-hosted events are saved with their host
+    const { error } = await sb.from('party_lists').upsert({ user_id: user.id, data, updated_at: new Date().toISOString() });
+    if (error) {
+      if (/free_limit/.test(error.message)) { refreshPremium().then(() => { if (!premium) showPaywall(true); }); }
+      else { dirty = true; if (navigator.onLine) toast('Couldn’t save online, will try again'); }
+    }
   }
+  for (const id of [...sharedDirty]) { sharedDirty.delete(id); await pushShared(id); }
 }
 // fetch the online copy; whichever copy was changed last wins
 async function pull(){
@@ -543,8 +558,9 @@ async function pull(){
   const remote = data?.data;
   if (remote && (remote.savedAt || 0) > (doc.savedAt || 0)) {
     if (document.querySelector('dialog[open]')) return;   // don't swap the list mid-edit
-    const keep = doc.currentId;
+    const keep = doc.currentId, foreign = doc.events.filter(e => !mine(e));
     useDoc(normalizeDoc(remote));
+    doc.events.push(...foreign.filter(f => !doc.events.some(e => e.id === f.id)));
     if (doc.events.some(e => e.id === keep)) useDoc({ ...doc, currentId: keep });
     doc.owner = user.id; writeLocal(); render();
   } else if (doc.savedAt && (!remote || doc.savedAt > (remote.savedAt || 0))) {
@@ -559,6 +575,96 @@ async function pullRsvps(){
   const { data } = await sb.from('rsvps').select('event_id,person_id,answer');
   if (data) { rsvp = Object.fromEntries(data.map(r => [r.event_id + ':' + r.person_id, r.answer || 'asked'])); render(); }
 }
+/* ---------- co-hosts (shared events) ---------- */
+// A shared event is also stored in `shared_events`, which the host and co-hosts can all edit. Each guest
+// carries the time it last changed (`u`) and deleted guests are listed in `removed`, so when two people
+// edit at once (two phones at the door) their changes merge guest by guest instead of overwriting.
+function mine(e){ return !e.shared || !user || e.ownerId === user.id; }
+const snaps = new Map(), sharedDirty = new Set(), joinTokens = new Map();
+const personKey = p => JSON.stringify({ ...p, u: 0 });
+const metaKey = ev => JSON.stringify({ ...ev, people: ev.people.map(p => p.id), removed: 0, metaU: 0 });
+function snap(ev){ snaps.set(ev.id, { meta: metaKey(ev), people: new Map(ev.people.map(p => [p.id, personKey(p)])) }); }
+// called on every save: stamp the guests that changed since last time, note the ones deleted
+function stampChanges(ev){
+  const before = snaps.get(ev.id); if (!before) return snap(ev);
+  const now = Date.now(); let changed = false;
+  ev.people.forEach(p => { if (before.people.get(p.id) !== personKey(p)) { p.u = now; changed = true; } });
+  const ids = new Set(ev.people.map(p => p.id));
+  const gone = [...before.people.keys()].filter(id => !ids.has(id));
+  if (gone.length) { ev.removed = [...(ev.removed || []), ...gone].slice(-1000); changed = true; }
+  if (changed || metaKey(ev) !== before.meta) { ev.metaU = now; sharedDirty.add(ev.id); }   // details + order follow the latest save
+  snap(ev);
+}
+function mergeEvent(a, b){
+  const gone = new Set([...(a.removed || []), ...(b.removed || [])]);
+  const [older, newer] = (a.metaU || 0) > (b.metaU || 0) ? [b, a] : [a, b];
+  const best = new Map();
+  [...older.people, ...newer.people].forEach(p => { const q = best.get(p.id); if (!q || (p.u || 0) >= (q.u || 0)) best.set(p.id, p); });
+  const order = [...new Set([...newer.people, ...older.people].map(p => p.id))].filter(id => !gone.has(id));
+  return { ...older, ...newer, people: order.map(id => best.get(id)), removed: [...gone].slice(-1000) };
+}
+// put the online version of a shared event into the list (merged with anything changed here meanwhile)
+function adoptShared(remote){
+  const local = doc.events.find(e => e.id === remote.id);
+  if (local && (local.metaU || 0) > (remote.metaU || 0)) sharedDirty.add(remote.id);   // newer edits here: send them too
+  const next = normalize({ ...(local ? mergeEvent(local, remote) : remote), shared: true, ownerId: remote.ownerId || local?.ownerId });
+  const i = doc.events.indexOf(local);
+  if (i < 0) doc.events.push(next); else doc.events[i] = next;
+  if (doc.currentId === next.id) state = next;
+  snap(next); writeLocal(); render();
+}
+function unshareLocal(ev){
+  sharedDirty.delete(ev.id);
+  if (ev.ownerId === user?.id) { ev.shared = false; delete ev.ownerId; }
+  else {
+    doc.events = doc.events.filter(e => e !== ev);
+    if (!doc.events.length) doc.events.push(normalize(null));
+    if (!doc.events.some(e => e.id === doc.currentId)) doc.currentId = doc.events[0].id;
+    state = doc.events.find(e => e.id === doc.currentId);
+  }
+  writeLocal(); render();
+}
+async function pushShared(id){
+  for (let tries = 0; tries < 4; tries++) {
+    const ev = doc.events.find(e => e.id === id); if (!ev?.shared) return;
+    const { data: cur, error } = await sb.from('shared_events').select('data,version,owner').eq('id', id).maybeSingle();
+    if (error) { sharedDirty.add(id); return; }   // offline: sent with the next save or visit
+    if (!cur) return unshareLocal(ev);             // host stopped sharing / removed us
+    const merged = { ...mergeEvent(ev, cur.data), ownerId: cur.owner };
+    const res = await sb.from('shared_events').update({ data: merged, version: cur.version + 1, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('version', cur.version).select('id');
+    if (res.error) {
+      if (/free_limit/.test(res.error.message)) toast('This event is at the host’s free limit of 20 guests');
+      else sharedDirty.add(id);
+      return;
+    }
+    if (res.data.length) return adoptShared(merged);
+    // someone else saved first: loop, merge with theirs, try again
+  }
+  sharedDirty.add(id);
+}
+async function pullShared(){
+  if (!sb || !user) return;
+  const { data, error } = await sb.from('shared_events').select('id,owner,data,join_token');
+  if (error) return;
+  const seen = new Set(data.map(r => r.id));
+  data.forEach(r => { joinTokens.set(r.id, r.join_token); adoptShared({ ...r.data, id: r.id, ownerId: r.owner }); });
+  doc.events.filter(e => e.shared && !seen.has(e.id)).forEach(unshareLocal);
+  if (sharedDirty.size) schedulePush();
+}
+// invite links look like ?join=<token>; remember it through sign-in, then join
+try { const t = new URLSearchParams(location.search).get('join'); if (t) { localStorage.setItem(KEY + '.join', t); history.replaceState(null, '', location.pathname); } } catch {}
+async function joinPending(){
+  let t = null; try { t = localStorage.getItem(KEY + '.join'); localStorage.removeItem(KEY + '.join'); } catch {}
+  if (!t || !sb || !user) return;
+  const { data: eid, error } = await sb.rpc('join_event', { token: t });
+  if (error) return toast(/invite_not_found/.test(error.message) ? 'That invite link isn’t valid any more' : /too_many/.test(error.message) ? 'That event already has 10 co-hosts' : 'Couldn’t join the event');
+  await pullShared(); openEvent(eid);
+  toast(`You’re now a co-host of “${state.title}”`);
+}
+const syncShared = () => pull().then(pullShared).then(joinPending);
+setInterval(() => { if (document.visibilityState === 'visible' && state?.shared) pullShared(); }, 15000);
+
 function setUser(u){
   const changed = (u?.id || null) !== (user?.id || null);
   user = u;
@@ -569,7 +675,7 @@ function setUser(u){
     if (doc.owner && doc.owner !== u.id) useDoc(normalizeDoc(null));   // someone else's list was cached here
     doc.owner = u.id; writeLocal(); render();
     if (/[?&](code|session_id)=/.test(location.search)) history.replaceState(null, '', location.pathname);
-    pull(); refreshPremium(); pullRsvps();
+    syncShared(); refreshPremium(); pullRsvps();
   }
 }
 async function startAuth(){
@@ -584,7 +690,7 @@ async function startAuth(){
     await sb.auth.signOut();
     toNative({ type: 'signout' });
     try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.premium'); } catch {}
-    premium = false; useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
+    premium = false; sharedDirty.clear(); snaps.clear(); joinTokens.clear(); useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
   };
   // delete the account and everything saved with it (App Store + Play require this in the app)
   const delDlg = $('#delDlg');
@@ -607,13 +713,13 @@ async function startAuth(){
     await sb.auth.signOut({ scope: 'local' });
     toNative({ type: 'signout' });
     try { localStorage.removeItem(KEY); localStorage.removeItem(KEY + '.premium'); } catch {}
-    premium = false; useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
+    premium = false; sharedDirty.clear(); snaps.clear(); joinTokens.clear(); useDoc(normalizeDoc(null)); render(); $('#setDlg').close();
     toast('Your account has been deleted');
   };
   const { data: { session } } = await sb.auth.getSession();
   setUser(session?.user || null);
   sb.auth.onAuthStateChange((_e, s) => setUser(s?.user || null));
-  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' ? (pull(), pullRsvps()) : push());
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' ? (syncShared(), pullRsvps()) : push());
   addEventListener('online', push);
 }
 
@@ -783,7 +889,7 @@ const evDlg = $('#evDlg');
 function eventMeta(e){
   const n = e.people.length;
   const when = e.date ? new Date(e.date + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-  return [when, `${n} ${n === 1 ? 'guest' : 'guests'}`].filter(Boolean).join(' · ');
+  return [when, `${n} ${n === 1 ? 'guest' : 'guests'}`, e.shared && (mine(e) ? 'Shared' : 'Co-host')].filter(Boolean).join(' · ');
 }
 function renderEvents(){
   const list = [...doc.events].sort((a, b) => (b.id === doc.currentId) - (a.id === doc.currentId) || (b.createdAt || 0) - (a.createdAt || 0));
@@ -807,7 +913,14 @@ $('#newEventBtn').onclick = () => {
 function deleteEvent(id){
   const ev = doc.events.find(e => e.id === id); if (!ev) return;
   const n = ev.people.length;
-  if (!confirm(`Delete “${ev.title}”${n ? ` and its ${n} ${n === 1 ? 'guest' : 'guests'}` : ''}? This can’t be undone.`)) { renderEvents(); return; }
+  const cohost = ev.shared && !mine(ev);
+  const msg = cohost ? `Leave “${ev.title}”? The host keeps the list.`
+    : `Delete “${ev.title}”${n ? ` and its ${n} ${n === 1 ? 'guest' : 'guests'}` : ''}?${ev.shared ? ' Co-hosts will lose it too.' : ''} This can’t be undone.`;
+  if (!confirm(msg)) { renderEvents(); return; }
+  if (ev.shared && sb && user) {   // also remove it online, so it doesn't come back on the next sync
+    sharedDirty.delete(id);
+    (cohost ? sb.from('event_members').delete().eq('event_id', id).eq('user_id', user.id) : sb.from('shared_events').delete().eq('id', id)).then(() => {});
+  }
   doc.events = doc.events.filter(e => e.id !== id);
   if (!doc.events.length) doc.events.push(normalize(null));
   if (doc.currentId === id) { doc.currentId = doc.events[0].id; state = doc.events[0]; }
@@ -1086,7 +1199,50 @@ function renderSettings(){
   $('#premBtn').hidden = premium;
   $('#premBtn').textContent = `Go unlimited · ${PRICE}`;
 }
-function openSettings(){ renderSettings(); setDlg.showModal(); }
+function openSettings(){ renderSettings(); renderShare(); setDlg.showModal(); }
+
+/* ---------- co-host controls ---------- */
+const inviteLink = id => new URL('?join=' + joinTokens.get(id), location.href.split('?')[0]).href;
+async function renderShare(){
+  $('#shareSec').hidden = !sb || !user;
+  if (!user) return;
+  const owner = !state.shared || state.ownerId === user.id;
+  $('#shareLinkRow').hidden = !(state.shared && owner && joinTokens.has(state.id));
+  $('#shareBtn').textContent = !state.shared ? 'Invite a co-host' : owner ? 'Stop sharing' : 'Leave';
+  if (!state.shared) { $('#shareHint').textContent = 'Let someone else edit this list and check guests in with you.'; return; }
+  if (!owner) { $('#shareHint').textContent = 'You’re a co-host of this event.'; return; }
+  $('#shareLink').value = joinTokens.has(state.id) ? inviteLink(state.id) : '';
+  const { count } = await sb.from('event_members').select('user_id', { count: 'exact', head: true }).eq('event_id', state.id);
+  $('#shareHint').textContent = count ? `Shared with ${count} co-host${count === 1 ? '' : 's'}` : 'No one has joined yet';
+}
+async function copyInvite(){
+  try { await navigator.clipboard.writeText($('#shareLink').value); toast('Invite link copied: send it to your co-host'); }
+  catch { $('#shareLink').select(); toast('Copy the link above and send it to your co-host'); }
+}
+$('#copyLinkBtn').onclick = copyInvite;
+$('#shareBtn').onclick = async () => {
+  const btn = $('#shareBtn'); btn.disabled = true;
+  try {
+    if (!state.shared) {
+      await push();   // make sure the latest list is online first
+      const ev = { ...state, shared: true, ownerId: user.id };
+      const { data, error } = await sb.from('shared_events').insert({ id: state.id, data: ev }).select('join_token').single();
+      if (error) return toast(/free_limit/.test(error.message) ? 'Premium is needed to share more than 20 guests' : 'Couldn’t share the event, try again');
+      state.shared = true; state.ownerId = user.id; joinTokens.set(state.id, data.join_token); snap(state); save();
+      await renderShare(); copyInvite();
+    } else if (state.ownerId === user.id) {
+      if (!confirm('Stop sharing this event? Co-hosts will lose access. You keep the list.')) return;
+      const { error } = await sb.from('shared_events').delete().eq('id', state.id);
+      if (error) return toast('Couldn’t stop sharing, try again');
+      unshareLocal(state); save(); renderShare(); toast('Not shared any more');
+    } else {
+      if (!confirm(`Leave “${state.title}”? It will be removed from your events.`)) return;
+      const { error } = await sb.from('event_members').delete().eq('event_id', state.id).eq('user_id', user.id);
+      if (error) return toast('Couldn’t leave, try again');
+      unshareLocal(state); setDlg.close(); toast('You left the event');
+    }
+  } finally { btn.disabled = false; }
+};
 $('#premBtn').onclick = () => { setDlg.close(); showPaywall(false); };
 $('#settingsBtn').onclick = openSettings;
 $('#detailsLine').onclick = openSettings;

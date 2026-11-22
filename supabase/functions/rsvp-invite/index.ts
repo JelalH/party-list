@@ -36,8 +36,10 @@ Deno.serve(async (req) => {
   const { count } = await db.from("rsvps").select("token", { count: "exact", head: true }).eq("user_id", user.id).gte("invited_at", since);
   if ((count ?? 0) >= DAILY_CAP) return json({ error: "daily_limit" }, 429);
 
-  const { data: list } = await db.from("party_lists").select("data").eq("user_id", user.id).maybeSingle();
-  const ev = list?.data?.events?.find((e: { id: string }) => e.id === event_id);
+  // shared events: read as the user, so only the host and co-hosts get through
+  const { data: shared } = await asUser.from("shared_events").select("data").eq("id", event_id).maybeSingle();
+  const { data: list } = shared ? { data: null } : await db.from("party_lists").select("data").eq("user_id", user.id).maybeSingle();
+  const ev = shared?.data ?? list?.data?.events?.find((e: { id: string }) => e.id === event_id);
   const guest = ev?.people?.find((p: { id: string }) => p.id === person_id);
   const to = String(guest?.email ?? "").trim();
   if (!ev || !guest) return json({ error: "not_saved_yet" }, 409);

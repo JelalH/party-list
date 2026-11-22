@@ -23,9 +23,10 @@ Deno.serve(async (req) => {
 
   const { data: r } = await db.from("rsvps").select("user_id, event_id, person_id, answer").eq("token", token).maybeSingle();
   if (!r) return json({ error: "not_found" }, 404);
-  // the event and guest live in the host's saved list
-  const { data: list } = await db.from("party_lists").select("data").eq("user_id", r.user_id).maybeSingle();
-  const ev = list?.data?.events?.find((e: { id: string }) => e.id === r.event_id);
+  // the event lives in shared_events if it has co-hosts, otherwise in the host's saved list
+  const { data: shared } = await db.from("shared_events").select("data").eq("id", r.event_id).maybeSingle();
+  const { data: list } = shared ? { data: null } : await db.from("party_lists").select("data").eq("user_id", r.user_id).maybeSingle();
+  const ev = shared?.data ?? list?.data?.events?.find((e: { id: string }) => e.id === r.event_id);
   const guest = ev?.people?.find((p: { id: string }) => p.id === r.person_id);
   if (!ev || !guest) return json({ error: "not_found" }, 404);   // host deleted the event or the guest
 

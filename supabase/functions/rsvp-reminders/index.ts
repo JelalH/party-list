@@ -20,10 +20,13 @@ Deno.serve(async () => {
   const owners = [...new Set((due ?? []).map((r) => r.user_id))];
   const { data: lists } = owners.length ? await db.from("party_lists").select("user_id, data").in("user_id", owners) : { data: [] };
   const byOwner = new Map((lists ?? []).map((l) => [l.user_id, (l.data?.events ?? []) as Event[]]));
+  const eventIds = [...new Set((due ?? []).map((r) => r.event_id))];
+  const { data: shared } = eventIds.length ? await db.from("shared_events").select("id, data").in("id", eventIds) : { data: [] };
+  const sharedById = new Map((shared ?? []).map((s) => [s.id, s.data as Event]));   // co-hosted events win over the host's copy
 
   let sent = 0;
   for (const r of due ?? []) {
-    const ev = byOwner.get(r.user_id)?.find((e) => e.id === r.event_id);
+    const ev = sharedById.get(r.event_id) ?? byOwner.get(r.user_id)?.find((e) => e.id === r.event_id);
     const guest = ev?.people.find((p) => p.id === r.person_id);
     if (!ev || ev.date !== tomorrow || !guest?.email) continue;
     const first = guest.name.trim().split(/\s+/)[0];
