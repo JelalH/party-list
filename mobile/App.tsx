@@ -4,6 +4,7 @@
 //   - Sign in with Apple (native sheet on iPhone) and Google (system browser, as Google requires)
 //   - the £2.99 lifetime unlock as an App Store / Google Play purchase (RevenueCat)
 //   - sharing exported PDFs / Word files through the phone's share sheet
+//   - reading the address book to add guests from Contacts
 import 'react-native-url-polyfill/auto';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler, Linking, Platform, StyleSheet, View, useColorScheme } from 'react-native';
@@ -16,6 +17,7 @@ import * as Crypto from 'expo-crypto';
 import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Contacts from 'expo-contacts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Purchases from 'react-native-purchases';
 import { createClient, type Session } from '@supabase/supabase-js';
@@ -48,7 +50,8 @@ type FromWeb =
   | { type: 'signout' }
   | { type: 'purchase'; userId: string }
   | { type: 'restore'; userId: string }
-  | { type: 'share'; filename: string; mime: string; base64: string };
+  | { type: 'share'; filename: string; mime: string; base64: string }
+  | { type: 'contacts' };
 
 export default function App() {
   const web = useRef<WebView>(null);
@@ -151,6 +154,23 @@ export default function App() {
         } catch { /* user closed the share sheet */ }
         return;
       }
+      // the phone's address book, so the host can tick people to add as guests (only names, emails, numbers)
+      case 'contacts': {
+        try {
+          const { status } = await Contacts.requestPermissionsAsync();
+          if (status !== 'granted') return tellWeb('onContacts', { denied: true });
+          const { data } = await Contacts.getContactsAsync({
+            fields: [Contacts.Fields.Name, Contacts.Fields.Emails, Contacts.Fields.PhoneNumbers], sort: Contacts.SortTypes.FirstName,
+          });
+          const list = data.filter((c) => c.name?.trim()).slice(0, 5000).map((c) => ({
+            name: c.name.trim(), email: c.emails?.[0]?.email ?? '', phone: c.phoneNumbers?.[0]?.number ?? '',
+          }));
+          tellWeb('onContacts', { list });
+        } catch {
+          tellWeb('onContacts', { error: true });
+        }
+        return;
+      }
     }
   }
 
@@ -188,7 +208,8 @@ export default function App() {
         bounces={false}
         contentInsetAdjustmentBehavior="never"
         automaticallyAdjustContentInsets={false}
-        applicationNameForUserAgent="PartyListApp/1.0"
+        // "contacts" tells the page this app version can import from the address book
+        applicationNameForUserAgent="PartyListApp/1.2 contacts"
         setSupportMultipleWindows={false}
       />
     </View>

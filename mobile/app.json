@@ -1,58 +1,69 @@
-﻿{
-  "expo": {
-    "name": "Party List",
-    "slug": "party-list",
-    "scheme": "partylist",
-    "version": "1.1.0",
-    "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "automatic",
-    "backgroundColor": "#0d0d0f",
-    "ios": {
-      "bundleIdentifier": "io.github.jelalh.partylist",
-      "supportsTablet": true,
-      "usesAppleSignIn": true,
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
-    },
-    "android": {
-      "package": "io.github.jelalh.partylist",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundImage": "./assets/adaptive-bg.png",
-        "backgroundColor": "#a43fc8"
-      },
-      "permissions": []
-    },
-    "plugins": [
-      "expo-apple-authentication",
-      "expo-web-browser",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/splash-icon.png",
-          "imageWidth": 120,
-          "backgroundColor": "#f7f7f8",
-          "dark": {
-            "image": "./assets/splash-icon.png",
-            "backgroundColor": "#0d0d0f"
-          }
-        }
-      ],
-      "expo-sharing",
-      "expo-status-bar"
-    ],
-    "extra": {
-      "siteUrl": "https://partylist.tuex.site/",
-      "supabaseUrl": "https://xdgrovfkdtvovryyybie.supabase.co",
-      "supabaseKey": "sb_publishable_AfRUGYgqjDBpCn2CJ7B4Qw_FVmov8Hq",
-      "revenuecatIosKey": "appl_MMfnyEMDJcHFutYelNDTTXzBNbf",
-      "revenuecatAndroidKey": "goog_uKsiybxdXNPNHSpMWuNMfFBNmWy",
-      "eas": {
-        "projectId": "3c3f5e77-4de3-49c7-b674-436427521498"
-      }
-    },
-    "owner": "tuex1"
-  }
+{
+    "expo":  {
+                 "name":  "Party List",
+                 "slug":  "party-list",
+                 "scheme":  "partylist",
+                 "version":  "1.2.0",
+                 "orientation":  "portrait",
+                 "icon":  "./assets/icon.png",
+                 "userInterfaceStyle":  "automatic",
+                 "backgroundColor":  "#0d0d0f",
+                 "ios":  {
+                             "bundleIdentifier":  "io.github.jelalh.partylist",
+                             "supportsTablet":  true,
+                             "usesAppleSignIn":  true,
+                             "infoPlist":  {
+                                               "ITSAppUsesNonExemptEncryption":  false
+                                           }
+                         },
+                 "android":  {
+                                 "package":  "io.github.jelalh.partylist",
+                                 "adaptiveIcon":  {
+                                                      "foregroundImage":  "./assets/adaptive-icon.png",
+                                                      "backgroundImage":  "./assets/adaptive-bg.png",
+                                                      "backgroundColor":  "#a43fc8"
+                                                  },
+                                 "permissions":  [
+
+                                                 ],
+                                 "blockedPermissions":  [
+                                                            "android.permission.WRITE_CONTACTS"
+                                                        ]
+                             },
+                 "plugins":  [
+                                 "expo-apple-authentication",
+                                 "expo-web-browser",
+                                 [
+                                     "expo-splash-screen",
+                                     {
+                                         "image":  "./assets/splash-icon.png",
+                                         "imageWidth":  120,
+                                         "backgroundColor":  "#f7f7f8",
+                                         "dark":  {
+                                                      "image":  "./assets/splash-icon.png",
+                                                      "backgroundColor":  "#0d0d0f"
+                                                  }
+                                     }
+                                 ],
+                                 "expo-sharing",
+                                 "expo-status-bar",
+                                 [
+                                     "expo-contacts",
+                                     {
+                                         "contactsPermission":  "Party List uses your contacts so you can pick people to add to your guest list."
+                                     }
+                                 ]
+                             ],
+                 "extra":  {
+                               "siteUrl":  "https://partylist.tuex.site/",
+                               "supabaseUrl":  "https://xdgrovfkdtvovryyybie.supabase.co",
+                               "supabaseKey":  "sb_publishable_AfRUGYgqjDBpCn2CJ7B4Qw_FVmov8Hq",
+                               "revenuecatIosKey":  "appl_MMfnyEMDJcHFutYelNDTTXzBNbf",
+                               "revenuecatAndroidKey":  "goog_uKsiybxdXNPNHSpMWuNMfFBNmWy",
+                               "eas":  {
+                                           "projectId":  "3c3f5e77-4de3-49c7-b674-436427521498"
+                                       }
+                           },
+                 "owner":  "tuex1"
+             }
 }

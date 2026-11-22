@@ -187,6 +187,12 @@ dialog::backdrop{background:rgba(0,0,0,.4);backdrop-filter:blur(3px)}
 .filter{height:42px;border-radius:12px;border:1px solid var(--border);background:var(--surface);padding:0 10px;font-weight:500}
 .menu-pop select{margin:4px 12px 6px;width:calc(100% - 24px);height:34px;border-radius:9px;border:1px solid var(--border);background:var(--bg)}
 #customFields:empty{display:none}
+#ctDlg .search{flex:none}
+.ct-list{list-style:none;margin:0;padding:0;max-height:50vh;overflow:auto}
+.ct-list label{display:flex;gap:12px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);cursor:pointer}
+.ct-list input{width:18px;height:18px;flex:none}
+.ct-list small{display:block;color:var(--muted);font-size:12px}
+.ct-list .done{opacity:.5;cursor:default}
 .native-only{display:none}
 .native .native-only{display:block}
 .native body{padding-top:env(safe-area-inset-top)}
@@ -294,6 +300,7 @@ body{padding-bottom:env(safe-area-inset-bottom)}
     <div>
       <h2 id="dlgTitle">Add guest</h2>
       <div class="rel" id="rel"></div>
+      <button type="button" class="link-btn" id="fromContactsBtn" hidden>+ Add from your contacts</button>
     </div>
     <div class="field">
       <label for="fCode">Entry code</label>
@@ -352,6 +359,16 @@ body{padding-bottom:env(safe-area-inset-bottom)}
     <button class="btn primary pay-cta" id="payBtn"></button>
     <button class="link-btn pay-later" id="payClose">Not now</button>
     <button class="link-btn pay-later native-only" id="payRestore">Restore purchase</button>
+  </div>
+</dialog>
+
+<!-- pick people from the phone's contacts -->
+<dialog id="ctDlg">
+  <div class="dlg">
+    <h2>Add from contacts</h2>
+    <label class="search"><input id="ctQ" placeholder="Search contacts" autocomplete="off"></label>
+    <ul class="ct-list" id="ctList"></ul>
+    <div class="dlg-actions"><button class="btn" id="ctCancel">Cancel</button><div class="r"><button class="btn primary" id="ctAdd" disabled>Add</button></div></div>
   </div>
 </dialog>
 
@@ -901,6 +918,7 @@ function openEditor(id, plusOf = null){
   $('#fJob').value = p?.job || '';
   $('#customFields').innerHTML = (state.fields || []).map((f, i) =>
     `<div class="field"><label for="fx${i}">${esc(f)}</label><input id="fx${i}" data-field="${esc(f)}" value="${esc(p?.extra?.[f] || '')}"></div>`).join('');
+  $('#fromContactsBtn').hidden = !CAN_CONTACTS || !!p || !!editPlusOf;
   $('#delBtn').style.visibility = p ? 'visible' : 'hidden';
 
   // who they came with / who they're bringing
@@ -986,6 +1004,49 @@ $('#delBtn').onclick = () => {
   state.people = state.people.filter(x => !gone.has(x.id));
   save(); render(); dlg.close(); toast('Removed');
 };
+
+/* ---------- add from contacts ---------- */
+// the phone app (1.2+) reads the address book natively; Android Chrome has a built-in contact picker
+const CAN_CONTACTS = /PartyListApp\/[\d.]+ contacts/.test(navigator.userAgent) || !!navigator.contacts?.select;
+const ctDlg = $('#ctDlg');
+let ctAll = [], ctPicked = new Set();
+const onList = c => state.people.some(p => p.name.trim().toLowerCase() === c.name.toLowerCase());
+function renderContacts(){
+  const q = $('#ctQ').value.trim().toLowerCase();
+  const shown = ctAll.map((c, i) => [c, i]).filter(([c]) => !q || (c.name + ' ' + c.email + ' ' + c.phone).toLowerCase().includes(q)).slice(0, 300);
+  $('#ctList').innerHTML = shown.map(([c, i]) => onList(c)
+    ? `<li><label class="done"><input type="checkbox" checked disabled><span>${esc(c.name)}<small>Already on the list</small></span></label></li>`
+    : `<li><label><input type="checkbox" data-i="${i}"${ctPicked.has(i) ? ' checked' : ''}><span>${esc(c.name)}<small>${esc(c.email || c.phone)}</small></span></label></li>`).join('')
+    || '<li class="hint" style="padding:12px 4px">No contacts found</li>';
+  const n = ctPicked.size;
+  $('#ctAdd').disabled = !n; $('#ctAdd').textContent = n ? `Add ${n} ${n === 1 ? 'guest' : 'guests'}` : 'Add';
+}
+function addContacts(list){
+  const fresh = list.filter(c => c.name && !onList(c));
+  if (!fresh.length) return toast('They’re already on your list');
+  if (!premium && totalPeople() + fresh.length > FREE_LIMIT) { ctDlg.close(); showPaywall(true); return; }
+  const used = new Set(state.people.map(p => p.code));
+  fresh.forEach(c => { const code = genCode(used); used.add(code);
+    state.people.push({ id: uid(), plusOf: null, code, name: c.name, email: c.email || '', phone: c.phone || '', notes: '' }); });
+  save(); render(); ctDlg.close(); toast(`Added ${fresh.length} ${fresh.length === 1 ? 'guest' : 'guests'}`);
+}
+$('#fromContactsBtn').onclick = async () => {
+  dlg.close();
+  if (/PartyListApp\/[\d.]+ contacts/.test(navigator.userAgent)) return toNative({ type: 'contacts' });
+  try {
+    const got = await navigator.contacts.select(['name', 'email', 'tel'], { multiple: true });
+    addContacts(got.map(c => ({ name: (c.name?.[0] || '').trim(), email: c.email?.[0] || '', phone: c.tel?.[0] || '' })));
+  } catch { /* picker closed */ }
+};
+window.partyNative.onContacts = r => {
+  if (r.denied) return toast('Allow Contacts for Party List in your phone’s Settings');
+  if (!r.list) return toast('Couldn’t read your contacts');
+  ctAll = r.list; ctPicked = new Set(); $('#ctQ').value = ''; renderContacts(); ctDlg.showModal();
+};
+$('#ctQ').oninput = renderContacts;
+$('#ctList').onchange = e => { const i = +e.target.dataset.i; e.target.checked ? ctPicked.add(i) : ctPicked.delete(i); renderContacts(); };
+$('#ctCancel').onclick = () => ctDlg.close();
+$('#ctAdd').onclick = () => addContacts([...ctPicked].map(i => ctAll[i]));
 
 // send someone their code through their own messages / mail app
 function inviteMessage(){

@@ -15,6 +15,7 @@
     "expo": "~57.0.22",
     "expo-apple-authentication": "~57.0.2",
     "expo-constants": "~57.0.23",
+    "expo-contacts": "~57.0.9",
     "expo-crypto": "~57.0.4",
     "expo-dev-client": "~57.0.21",
     "expo-file-system": "~57.0.7",
